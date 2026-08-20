@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import confetti from "canvas-confetti";
 import {
   Download,
   Copy,
@@ -44,16 +43,23 @@ export function Step5CampaignExport({
   const [copiedType, setCopiedType] = useState<string | null>(null);
 
   useEffect(() => {
-    // Trigger celebratory confetti on completion
-    try {
-      confetti({
-        particleCount: 80,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ["#f43f5e", "#fb7185", "#facc15", "#0081FB", "#4285F4"],
-      });
-    } catch (e) {
-      console.log("Confetti trigger skipped");
+    // Dynamically load confetti on client mount only
+    if (typeof window !== "undefined") {
+      import("canvas-confetti")
+        .then((module) => {
+          const confettiFn = module.default || module;
+          if (typeof confettiFn === "function") {
+            confettiFn({
+              particleCount: 80,
+              spread: 70,
+              origin: { y: 0.6 },
+              colors: ["#f43f5e", "#fb7185", "#facc15", "#0081FB", "#4285F4"],
+            });
+          }
+        })
+        .catch(() => {
+          // ignore confetti load errors
+        });
     }
   }, []);
 

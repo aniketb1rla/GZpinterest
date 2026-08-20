@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { StepIndicator } from "@/components/ui/StepIndicator";
 import { SettingsModal } from "@/components/ui/SettingsModal";
@@ -47,28 +47,58 @@ export default function Home() {
     }
   }, []);
 
-  const handleSaveSettings = (settings: ApiSettings) => {
-    setApiSettings(settings);
-    try {
-      localStorage.setItem("gz_pinterest_settings", JSON.stringify(settings));
-    } catch (e) {
-      console.log("Settings save skipped");
-    }
-
-    // If already on or past Step 2 and has brand profile, refresh Pinterest pins using new token
-    if (brandProfile) {
-      const pinQuery = brandProfile.pinterestStrategy.searchQueries[0] || brandProfile.name;
-      handleSearchPinterestPins(pinQuery, settings.pinterestToken);
-    }
-  };
-
-  const goToStep = (step: number) => {
+  const goToStep = useCallback((step: number) => {
     setCurrentStep(step);
-    if (step > maxStepReached) {
-      setMaxStepReached(step);
+    setMaxStepReached((prev) => Math.max(prev, step));
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+  }, []);
+
+  // Search Pinterest Pins
+  const handleSearchPinterestPins = useCallback(
+    async (query: string, overrideToken?: string) => {
+      setIsLoading(true);
+      try {
+        const token = overrideToken !== undefined ? overrideToken : apiSettings.pinterestToken;
+        const res = await fetch("/api/pinterest-search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query,
+            categoryHint: brandProfile?.industry,
+            pinterestToken: token,
+          }),
+        });
+        const data = await res.json();
+        if (data.pins) {
+          setPinterestPins(data.pins);
+        }
+      } catch (e) {
+        console.error("Pinterest search failed:", e);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [apiSettings.pinterestToken, brandProfile?.industry]
+  );
+
+  const handleSaveSettings = useCallback(
+    (settings: ApiSettings) => {
+      setApiSettings(settings);
+      try {
+        localStorage.setItem("gz_pinterest_settings", JSON.stringify(settings));
+      } catch (e) {
+        console.log("Settings save skipped");
+      }
+
+      if (brandProfile) {
+        const pinQuery = brandProfile.pinterestStrategy.searchQueries[0] || brandProfile.name;
+        handleSearchPinterestPins(pinQuery, settings.pinterestToken);
+      }
+    },
+    [brandProfile, handleSearchPinterestPins]
+  );
 
   // Step 1 -> 2: Analyze URL and uploaded assets
   const handleAnalyzeUrl = async () => {
@@ -146,30 +176,6 @@ export default function Home() {
     } finally {
       setIsLoading(false);
       setLoadingStatus("");
-    }
-  };
-
-  // Step 3: Search Pinterest Pins
-  const handleSearchPinterestPins = async (query: string, overrideToken?: string) => {
-    setIsLoading(true);
-    try {
-      const res = await fetch("/api/pinterest-search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query,
-          categoryHint: brandProfile?.industry,
-          pinterestToken: overrideToken !== undefined ? overrideToken : apiSettings.pinterestToken,
-        }),
-      });
-      const data = await res.json();
-      if (data.pins) {
-        setPinterestPins(data.pins);
-      }
-    } catch (e) {
-      console.error("Pinterest search failed:", e);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -298,7 +304,7 @@ export default function Home() {
               pins={pinterestPins}
               selectedPins={selectedPins}
               onTogglePin={handleTogglePin}
-              onSearchNewQuery={handleSearchPinterestPins}
+              onSearchNewQuery={(q) => handleSearchPinterestPins(q)}
               onAddCustomPin={handleAddCustomPin}
               onProceedToCreativeStudio={handleGenerateCampaign}
               onBack={() => goToStep(2)}
