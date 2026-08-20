@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ScrapedLinkData } from "./link-analyzer";
-import { BrandProfile, NanoBananaPrompt, PinterestPin, UploadedAsset } from "./types";
+import { BrandProfile, NanoBananaPrompt, PinterestPin, UploadedAsset, PromptParameters } from "./types";
 import { DEFAULT_NANO_BANANA_NEGATIVE_PROMPT, formatNanoBananaProPrompt } from "./nano-banana-prompt-engine";
 
 function getGeminiClient(customApiKey?: string) {
