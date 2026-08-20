@@ -32,6 +32,7 @@ export default function Home() {
 
   const [apiSettings, setApiSettings] = useState<ApiSettings>({
     useSandbox: true,
+    pinterestScraperKey: "ok_63e7e9468267146a98115657d1e9aa6b",
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -57,7 +58,7 @@ export default function Home() {
     }
   }, []);
 
-  // Search Pinterest Pins with Gemini Creative Director scoring
+  // Search Pinterest Pins with Gemini Creative Director scoring and live scraper API
   const handleSearchPinterestPins = useCallback(
     async (query: string, overrideToken?: string, overrideSandbox?: boolean) => {
       setIsLoading(true);
@@ -75,6 +76,7 @@ export default function Home() {
             useSandbox: isSandbox,
             brandProfile,
             geminiApiKey: apiSettings.geminiApiKey,
+            scraperApiKey: apiSettings.pinterestScraperKey,
           }),
         });
         const data = await res.json();
@@ -87,7 +89,13 @@ export default function Home() {
         setIsLoading(false);
       }
     },
-    [apiSettings.pinterestToken, apiSettings.useSandbox, apiSettings.geminiApiKey, brandProfile]
+    [
+      apiSettings.pinterestToken,
+      apiSettings.useSandbox,
+      apiSettings.geminiApiKey,
+      apiSettings.pinterestScraperKey,
+      brandProfile,
+    ]
   );
 
   const handleSaveSettings = useCallback(
@@ -153,8 +161,8 @@ export default function Home() {
         }
       }
 
-      // 3. Pre-fetch initial Pinterest Pins with Token & Gemini Scoring
-      setLoadingStatus("Mining Pinterest Visual Trends with Gemini AI...");
+      // 3. Pre-fetch initial Pinterest Pins with Live Scraper & Gemini Scoring
+      setLoadingStatus("Mining Live Pinterest Visual Trends with Gemini AI...");
       try {
         const pinQuery = profile.pinterestStrategy.searchQueries[0] || profile.name;
         const pinRes = await fetch("/api/pinterest-search", {
@@ -167,6 +175,7 @@ export default function Home() {
             useSandbox: apiSettings.useSandbox !== false,
             brandProfile: profile,
             geminiApiKey: apiSettings.geminiApiKey,
+            scraperApiKey: apiSettings.pinterestScraperKey,
           }),
         });
         const pinData = await pinRes.json();

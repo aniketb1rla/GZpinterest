@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { X, Key, Sparkles, ShieldCheck, ExternalLink, CheckCircle2, AlertCircle, RefreshCw, FlaskConical, Globe } from "lucide-react";
+import { X, Key, Sparkles, ShieldCheck, ExternalLink, CheckCircle2, AlertCircle, RefreshCw, FlaskConical, Globe, Search } from "lucide-react";
 import { ApiSettings } from "@/lib/types";
 
 interface SettingsModalProps {
@@ -14,6 +14,7 @@ interface SettingsModalProps {
 export function SettingsModal({ isOpen, onClose, onSave, currentSettings }: SettingsModalProps) {
   const [settings, setSettings] = useState<ApiSettings>({
     useSandbox: true,
+    pinterestScraperKey: "ok_63e7e9468267146a98115657d1e9aa6b",
     ...currentSettings,
   });
   const [savedToast, setSavedToast] = useState(false);
@@ -85,6 +86,7 @@ export function SettingsModal({ isOpen, onClose, onSave, currentSettings }: Sett
   useEffect(() => {
     setSettings({
       useSandbox: true,
+      pinterestScraperKey: "ok_63e7e9468267146a98115657d1e9aa6b",
       ...currentSettings,
     });
     if (isOpen && currentSettings.pinterestToken) {
@@ -114,7 +116,7 @@ export function SettingsModal({ isOpen, onClose, onSave, currentSettings }: Sett
             </div>
             <div>
               <h3 className="text-lg font-bold text-white">API & Credentials Settings</h3>
-              <p className="text-xs text-slate-400">Configure Pinterest Sandbox / Production & Gemini AI</p>
+              <p className="text-xs text-slate-400">Configure Live Pinterest Search & Gemini AI</p>
             </div>
           </div>
           <button
@@ -130,12 +132,37 @@ export function SettingsModal({ isOpen, onClose, onSave, currentSettings }: Sett
             e.preventDefault();
             handleSave();
           }}
-          className="space-y-4"
+          className="space-y-4 max-h-[75vh] overflow-y-auto pr-1"
         >
+          {/* Live Pinterest Search Scraper API Key */}
+          <div className="space-y-1.5 p-3 bg-rose-950/20 border border-rose-500/20 rounded-2xl">
+            <div className="flex items-center justify-between">
+              <label className="text-slate-200 font-semibold text-xs sm:text-sm flex items-center gap-1.5">
+                <Search className="w-4 h-4 text-rose-400" />
+                Live Pinterest Search Scraper API Key
+              </label>
+              <span className="text-[10px] px-2 py-0.5 bg-rose-500/20 text-rose-300 font-bold rounded-full">
+                Active
+              </span>
+            </div>
+            <input
+              type="password"
+              placeholder="ok_..."
+              value={settings.pinterestScraperKey || "ok_63e7e9468267146a98115657d1e9aa6b"}
+              onChange={(e) =>
+                setSettings({ ...settings, pinterestScraperKey: e.target.value })
+              }
+              className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-rose-500 font-mono text-xs"
+            />
+            <p className="text-[11px] text-slate-400">
+              Powers real-time Pinterest query extraction (<code>pinterest-scraper.omkar.cloud</code>) for high-converting brand pins.
+            </p>
+          </div>
+
           {/* Environment Selector: Sandbox vs Production */}
           <div className="space-y-1.5">
             <label className="text-slate-200 font-semibold text-xs sm:text-sm block">
-              Pinterest API Environment
+              Official Pinterest Token Mode (Optional)
             </label>
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -151,7 +178,7 @@ export function SettingsModal({ isOpen, onClose, onSave, currentSettings }: Sett
                 }`}
               >
                 <FlaskConical className="w-3.5 h-3.5" />
-                <span>Sandbox (api-sandbox)</span>
+                <span>Sandbox Mode</span>
               </button>
 
               <button
@@ -167,7 +194,7 @@ export function SettingsModal({ isOpen, onClose, onSave, currentSettings }: Sett
                 }`}
               >
                 <Globe className="w-3.5 h-3.5" />
-                <span>Production (api)</span>
+                <span>Production Mode</span>
               </button>
             </div>
           </div>
@@ -179,7 +206,7 @@ export function SettingsModal({ isOpen, onClose, onSave, currentSettings }: Sett
                 <span className="w-5 h-5 rounded-full bg-[#E60023] flex items-center justify-center text-[11px] text-white font-bold">
                   P
                 </span>
-                Pinterest Access Token {settings.useSandbox !== false ? "(Sandbox)" : "(Production)"}
+                Pinterest Access Token (Sandbox / Prod)
               </label>
               <a
                 href="https://developers.pinterest.com/apps/"
@@ -187,14 +214,14 @@ export function SettingsModal({ isOpen, onClose, onSave, currentSettings }: Sett
                 rel="noreferrer"
                 className="text-xs text-rose-400 hover:underline flex items-center gap-1"
               >
-                Pinterest Dev Portal <ExternalLink className="w-3 h-3" />
+                Get Token <ExternalLink className="w-3 h-3" />
               </a>
             </div>
 
             <div className="flex gap-2">
               <input
                 type="password"
-                placeholder="pina_... (Pinterest Token)"
+                placeholder="pina_... (Optional)"
                 value={settings.pinterestToken || ""}
                 onChange={(e) => {
                   setSettings({ ...settings, pinterestToken: e.target.value });
@@ -237,16 +264,13 @@ export function SettingsModal({ isOpen, onClose, onSave, currentSettings }: Sett
                         Connected to Pinterest {pinterestStatus.isSandbox ? "Sandbox" : "Production"} as @{pinterestStatus.username}
                       </p>
                       <p className="text-[11px] text-emerald-400/80">
-                        Found {pinterestStatus.boardCount || 0} Boards & {pinterestStatus.pinCount || 0} Pins. Gemini will automatically analyze these pins for your campaign.
+                        Found {pinterestStatus.boardCount || 0} Boards & {pinterestStatus.pinCount || 0} Pins.
                       </p>
                     </>
                   ) : (
                     <>
-                      <p className="font-bold">Pinterest Connection Failed</p>
+                      <p className="font-bold">Pinterest Token Verification Failed</p>
                       <p className="text-[11px] text-rose-300/80">{pinterestStatus.error}</p>
-                      <p className="text-[10px] text-slate-400 mt-1">
-                        Tip: In your Pinterest Developer App, make sure the token is generated with <code>boards:read</code>, <code>pins:read</code>, and <code>user_accounts:read</code> scopes.
-                      </p>
                     </>
                   )}
                 </div>

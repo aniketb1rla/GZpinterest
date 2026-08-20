@@ -80,6 +80,8 @@ export interface PinterestPin {
   imageUrl: string;
   pinUrl: string;
   board?: string;
+  authorUsername?: string;
+  authorName?: string;
   aestheticTags: string[];
   colorScheme: string[];
   visualComposition: string;
@@ -87,6 +89,7 @@ export interface PinterestPin {
   adCreativeAngle: string;
   likesOrSaves?: string;
   selected?: boolean;
+  isFromLiveApi?: boolean;
   isFromSandboxApi?: boolean;
   geminiFitScore?: number;
   geminiFitReason?: string;
@@ -173,6 +176,7 @@ export interface CampaignBrief {
 export interface ApiSettings {
   geminiApiKey?: string;
   pinterestToken?: string;
+  pinterestScraperKey?: string;
   useSandbox?: boolean;
   nanoBananaEndpoint?: string;
 }
