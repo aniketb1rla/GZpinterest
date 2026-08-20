@@ -31,7 +31,6 @@ export default function Home() {
   const [googleAdSets, setGoogleAdSets] = useState<NanoBananaPrompt[]>([]);
 
   const [apiSettings, setApiSettings] = useState<ApiSettings>({
-    useSandbox: true,
     pinterestScraperKey: "ok_63e7e9468267146a98115657d1e9aa6b",
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -60,11 +59,13 @@ export default function Home() {
 
   // Search Pinterest Pins with Gemini Creative Director scoring and live scraper API
   const handleSearchPinterestPins = useCallback(
-    async (query: string, overrideToken?: string, overrideSandbox?: boolean) => {
+    async (query: string, overrideScraperKey?: string) => {
       setIsLoading(true);
       try {
-        const token = overrideToken !== undefined ? overrideToken : apiSettings.pinterestToken;
-        const isSandbox = overrideSandbox !== undefined ? overrideSandbox : apiSettings.useSandbox !== false;
+        const scraperKey =
+          overrideScraperKey !== undefined
+            ? overrideScraperKey
+            : apiSettings.pinterestScraperKey || "ok_63e7e9468267146a98115657d1e9aa6b";
 
         const res = await fetch("/api/pinterest-search", {
           method: "POST",
@@ -72,11 +73,9 @@ export default function Home() {
           body: JSON.stringify({
             query,
             categoryHint: brandProfile?.industry,
-            pinterestToken: token,
-            useSandbox: isSandbox,
             brandProfile,
             geminiApiKey: apiSettings.geminiApiKey,
-            scraperApiKey: apiSettings.pinterestScraperKey,
+            scraperApiKey: scraperKey,
           }),
         });
         const data = await res.json();
@@ -89,13 +88,7 @@ export default function Home() {
         setIsLoading(false);
       }
     },
-    [
-      apiSettings.pinterestToken,
-      apiSettings.useSandbox,
-      apiSettings.geminiApiKey,
-      apiSettings.pinterestScraperKey,
-      brandProfile,
-    ]
+    [apiSettings.geminiApiKey, apiSettings.pinterestScraperKey, brandProfile]
   );
 
   const handleSaveSettings = useCallback(
@@ -109,7 +102,7 @@ export default function Home() {
 
       if (brandProfile) {
         const pinQuery = brandProfile.pinterestStrategy.searchQueries[0] || brandProfile.name;
-        handleSearchPinterestPins(pinQuery, settings.pinterestToken, settings.useSandbox);
+        handleSearchPinterestPins(pinQuery, settings.pinterestScraperKey);
       }
     },
     [brandProfile, handleSearchPinterestPins]
@@ -162,7 +155,7 @@ export default function Home() {
       }
 
       // 3. Pre-fetch initial Pinterest Pins with Live Scraper & Gemini Scoring
-      setLoadingStatus("Mining Live Pinterest Visual Trends with Gemini AI...");
+      setLoadingStatus("Searching Live Pinterest Visuals with Gemini AI...");
       try {
         const pinQuery = profile.pinterestStrategy.searchQueries[0] || profile.name;
         const pinRes = await fetch("/api/pinterest-search", {
@@ -171,8 +164,6 @@ export default function Home() {
           body: JSON.stringify({
             query: pinQuery,
             categoryHint: profile.industry,
-            pinterestToken: apiSettings.pinterestToken,
-            useSandbox: apiSettings.useSandbox !== false,
             brandProfile: profile,
             geminiApiKey: apiSettings.geminiApiKey,
             scraperApiKey: apiSettings.pinterestScraperKey,
@@ -216,6 +207,8 @@ export default function Home() {
       title: customPin.title || "Custom Pin",
       description: customPin.description || "Custom aesthetic reference",
       imageUrl: customPin.imageUrl || "",
+      videoUrl: customPin.videoUrl,
+      isVideo: customPin.isVideo,
       pinUrl: customPin.pinUrl || "",
       board: customPin.board || "Custom Board",
       aestheticTags: customPin.aestheticTags || ["Custom"],

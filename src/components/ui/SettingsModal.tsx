@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { X, Key, Sparkles, ShieldCheck, ExternalLink, CheckCircle2, AlertCircle, RefreshCw, FlaskConical, Globe, Search } from "lucide-react";
+import { X, Key, Sparkles, ShieldCheck, ExternalLink, CheckCircle2, AlertCircle, RefreshCw, Search } from "lucide-react";
 import { ApiSettings } from "@/lib/types";
 
 interface SettingsModalProps {
@@ -13,86 +13,59 @@ interface SettingsModalProps {
 
 export function SettingsModal({ isOpen, onClose, onSave, currentSettings }: SettingsModalProps) {
   const [settings, setSettings] = useState<ApiSettings>({
-    useSandbox: true,
     pinterestScraperKey: "ok_63e7e9468267146a98115657d1e9aa6b",
     ...currentSettings,
   });
   const [savedToast, setSavedToast] = useState(false);
-  const [isTestingPinterest, setIsTestingPinterest] = useState(false);
-  const [pinterestStatus, setPinterestStatus] = useState<{
+  const [isTestingKey, setIsTestingKey] = useState(false);
+  const [testStatus, setTestStatus] = useState<{
     tested: boolean;
     valid?: boolean;
-    isSandbox?: boolean;
-    username?: string;
-    boardCount?: number;
-    pinCount?: number;
+    profilesFound?: number;
     error?: string;
   }>({ tested: false });
 
-  // 1. Declare testPinterestToken BEFORE useEffect
-  const testPinterestToken = useCallback(
-    async (tokenToTest?: string, useSandboxOverride?: boolean) => {
-      const token = tokenToTest || settings.pinterestToken;
-      const isSandbox = useSandboxOverride !== undefined ? useSandboxOverride : settings.useSandbox !== false;
+  const testApiKey = useCallback(async (keyToTest?: string) => {
+    const key = keyToTest || settings.pinterestScraperKey || "ok_63e7e9468267146a98115657d1e9aa6b";
+    setIsTestingKey(true);
+    try {
+      const res = await fetch("/api/pinterest-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scraperKey: key }),
+      });
+      const data = await res.json();
 
-      if (!token) {
-        setPinterestStatus({
+      if (data.valid) {
+        setTestStatus({
+          tested: true,
+          valid: true,
+          profilesFound: data.profilesFound,
+        });
+      } else {
+        setTestStatus({
           tested: true,
           valid: false,
-          error: "Please enter a Pinterest Access Token to test",
+          error: data.error || "Invalid Pinterest Scraper API key",
         });
-        return;
       }
+    } catch (e: any) {
+      setTestStatus({
+        tested: true,
+        valid: false,
+        error: e.message || "Failed to reach Pinterest API",
+      });
+    } finally {
+      setIsTestingKey(false);
+    }
+  }, [settings.pinterestScraperKey]);
 
-      setIsTestingPinterest(true);
-      try {
-        const res = await fetch("/api/pinterest-user", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token, useSandbox: isSandbox }),
-        });
-        const data = await res.json();
-
-        if (data.valid) {
-          setPinterestStatus({
-            tested: true,
-            valid: true,
-            isSandbox: data.isSandbox,
-            username: data.user.username,
-            boardCount: data.user.boardCount,
-            pinCount: data.user.pinCount,
-          });
-        } else {
-          setPinterestStatus({
-            tested: true,
-            valid: false,
-            error: data.error || "Invalid token or insufficient scopes",
-          });
-        }
-      } catch (e: any) {
-        setPinterestStatus({
-          tested: true,
-          valid: false,
-          error: e.message || "Failed to reach Pinterest API",
-        });
-      } finally {
-        setIsTestingPinterest(false);
-      }
-    },
-    [settings.pinterestToken, settings.useSandbox]
-  );
-
-  // 2. useEffect safely references testPinterestToken
   useEffect(() => {
     setSettings({
-      useSandbox: true,
       pinterestScraperKey: "ok_63e7e9468267146a98115657d1e9aa6b",
       ...currentSettings,
     });
-    if (isOpen && currentSettings.pinterestToken) {
-      testPinterestToken(currentSettings.pinterestToken, currentSettings.useSandbox);
-    }
-  }, [currentSettings, isOpen, testPinterestToken]);
+  }, [currentSettings, isOpen]);
 
   const handleSave = () => {
     onSave(settings);
@@ -115,7 +88,7 @@ export function SettingsModal({ isOpen, onClose, onSave, currentSettings }: Sett
               <Key className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-white">API & Credentials Settings</h3>
+              <h3 className="text-lg font-bold text-white">API & Engine Settings</h3>
               <p className="text-xs text-slate-400">Configure Live Pinterest Search & Gemini AI</p>
             </div>
           </div>
@@ -132,145 +105,74 @@ export function SettingsModal({ isOpen, onClose, onSave, currentSettings }: Sett
             e.preventDefault();
             handleSave();
           }}
-          className="space-y-4 max-h-[75vh] overflow-y-auto pr-1"
+          className="space-y-4"
         >
           {/* Live Pinterest Search Scraper API Key */}
-          <div className="space-y-1.5 p-3 bg-rose-950/20 border border-rose-500/20 rounded-2xl">
-            <div className="flex items-center justify-between">
-              <label className="text-slate-200 font-semibold text-xs sm:text-sm flex items-center gap-1.5">
-                <Search className="w-4 h-4 text-rose-400" />
-                Live Pinterest Search Scraper API Key
-              </label>
-              <span className="text-[10px] px-2 py-0.5 bg-rose-500/20 text-rose-300 font-bold rounded-full">
-                Active
-              </span>
-            </div>
-            <input
-              type="password"
-              placeholder="ok_..."
-              value={settings.pinterestScraperKey || "ok_63e7e9468267146a98115657d1e9aa6b"}
-              onChange={(e) =>
-                setSettings({ ...settings, pinterestScraperKey: e.target.value })
-              }
-              className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-rose-500 font-mono text-xs"
-            />
-            <p className="text-[11px] text-slate-400">
-              Powers real-time Pinterest query extraction (<code>pinterest-scraper.omkar.cloud</code>) for high-converting brand pins.
-            </p>
-          </div>
-
-          {/* Environment Selector: Sandbox vs Production */}
-          <div className="space-y-1.5">
-            <label className="text-slate-200 font-semibold text-xs sm:text-sm block">
-              Official Pinterest Token Mode (Optional)
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setSettings({ ...settings, useSandbox: true });
-                  setPinterestStatus({ tested: false });
-                }}
-                className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition ${
-                  settings.useSandbox !== false
-                    ? "bg-amber-500/15 border-amber-500 text-amber-300 shadow-sm"
-                    : "bg-slate-950 border-slate-800 text-slate-400 hover:text-white"
-                }`}
-              >
-                <FlaskConical className="w-3.5 h-3.5" />
-                <span>Sandbox Mode</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setSettings({ ...settings, useSandbox: false });
-                  setPinterestStatus({ tested: false });
-                }}
-                className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition ${
-                  settings.useSandbox === false
-                    ? "bg-rose-500/15 border-rose-500 text-rose-300 shadow-sm"
-                    : "bg-slate-950 border-slate-800 text-slate-400 hover:text-white"
-                }`}
-              >
-                <Globe className="w-3.5 h-3.5" />
-                <span>Production Mode</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Pinterest API Token Section */}
-          <div className="space-y-2">
+          <div className="space-y-2 p-4 bg-rose-950/20 border border-rose-500/20 rounded-2xl">
             <div className="flex items-center justify-between">
               <label className="text-slate-200 font-semibold text-xs sm:text-sm flex items-center gap-2">
                 <span className="w-5 h-5 rounded-full bg-[#E60023] flex items-center justify-center text-[11px] text-white font-bold">
                   P
                 </span>
-                Pinterest Access Token (Sandbox / Prod)
+                Live Pinterest Search API Key
               </label>
-              <a
-                href="https://developers.pinterest.com/apps/"
-                target="_blank"
-                rel="noreferrer"
-                className="text-xs text-rose-400 hover:underline flex items-center gap-1"
-              >
-                Get Token <ExternalLink className="w-3 h-3" />
-              </a>
+              <span className="text-[10px] px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 font-bold rounded-full border border-emerald-500/30">
+                Connected
+              </span>
             </div>
 
             <div className="flex gap-2">
               <input
                 type="password"
-                placeholder="pina_... (Optional)"
-                value={settings.pinterestToken || ""}
+                placeholder="ok_63e7e9468267146a98115657d1e9aa6b"
+                value={settings.pinterestScraperKey || "ok_63e7e9468267146a98115657d1e9aa6b"}
                 onChange={(e) => {
-                  setSettings({ ...settings, pinterestToken: e.target.value });
-                  setPinterestStatus({ tested: false });
+                  setSettings({ ...settings, pinterestScraperKey: e.target.value });
+                  setTestStatus({ tested: false });
                 }}
                 className="flex-1 px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-[#E60023] font-mono text-xs"
               />
               <button
                 type="button"
-                disabled={isTestingPinterest || !settings.pinterestToken}
-                onClick={() => testPinterestToken()}
+                disabled={isTestingKey}
+                onClick={() => testApiKey()}
                 className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shrink-0"
               >
-                {isTestingPinterest ? (
+                {isTestingKey ? (
                   <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#E60023]" />
                 ) : (
-                  <span>Test Token</span>
+                  <span>Test API</span>
                 )}
               </button>
             </div>
 
+            <p className="text-[11px] text-slate-400">
+              Directly searches Pinterest (<code>pinterest-scraper.omkar.cloud</code>) for real images, video pins, and aesthetic boards.
+            </p>
+
             {/* Test Status Feedback */}
-            {pinterestStatus.tested && (
+            {testStatus.tested && (
               <div
                 className={`p-3 rounded-xl border text-xs flex items-start gap-2.5 transition animate-in fade-in ${
-                  pinterestStatus.valid
+                  testStatus.valid
                     ? "bg-emerald-950/40 border-emerald-500/30 text-emerald-300"
                     : "bg-rose-950/40 border-rose-500/30 text-rose-300"
                 }`}
               >
-                {pinterestStatus.valid ? (
+                {testStatus.valid ? (
                   <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                 ) : (
                   <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
                 )}
                 <div className="space-y-0.5">
-                  {pinterestStatus.valid ? (
-                    <>
-                      <p className="font-bold">
-                        Connected to Pinterest {pinterestStatus.isSandbox ? "Sandbox" : "Production"} as @{pinterestStatus.username}
-                      </p>
-                      <p className="text-[11px] text-emerald-400/80">
-                        Found {pinterestStatus.boardCount || 0} Boards & {pinterestStatus.pinCount || 0} Pins.
-                      </p>
-                    </>
+                  {testStatus.valid ? (
+                    <p className="font-bold">
+                      Live Pinterest Search API is online & responding ({testStatus.profilesFound} search results ready).
+                    </p>
                   ) : (
                     <>
-                      <p className="font-bold">Pinterest Token Verification Failed</p>
-                      <p className="text-[11px] text-rose-300/80">{pinterestStatus.error}</p>
+                      <p className="font-bold">API Test Failed</p>
+                      <p className="text-[11px] text-rose-300/80">{testStatus.error}</p>
                     </>
                   )}
                 </div>
@@ -301,6 +203,9 @@ export function SettingsModal({ isOpen, onClose, onSave, currentSettings }: Sett
               onChange={(e) => setSettings({ ...settings, geminiApiKey: e.target.value })}
               className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-rose-500 font-mono text-xs"
             />
+            <p className="text-[11px] text-slate-500">
+              Powers deep brand intelligence, multimodal vision on user uploads, and Nano Banana Pro prompt crafting.
+            </p>
           </div>
 
           {/* Footer */}

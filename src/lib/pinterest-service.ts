@@ -1,10 +1,9 @@
-import * as cheerio from "cheerio";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { BrandProfile, PinterestPin } from "./types";
 
 const DEFAULT_PINTEREST_SCRAPER_KEY = "ok_63e7e9468267146a98115657d1e9aa6b";
 
-// Curated high-aesthetic pin database fallback
+// Fallback high-aesthetic library
 const CURATED_AESTHETICS_LIBRARY: Record<string, PinterestPin[]> = {
   beauty: [
     {
@@ -36,26 +35,26 @@ const CURATED_AESTHETICS_LIBRARY: Record<string, PinterestPin[]> = {
       likesOrSaves: "18.9k saves",
     },
   ],
-  home_decor: [
+  general: [
     {
-      id: "pin-home-1",
-      title: "Japandi Minimalist Living Room Warm Oak",
-      description: "Clean architectural space with low-profile oak furniture, linen sofa, travertine coffee table, and soft diffused daylight.",
-      imageUrl: "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=800&q=80",
-      pinUrl: "https://www.pinterest.com/pin/japandi-minimalist-living-room",
-      board: "Japandi & Minimal Interiors",
-      aestheticTags: ["Japandi", "Minimalist", "Warm Oak", "Travertine", "Zen Living"],
-      colorScheme: ["#E6DFD5", "#9B8B7A", "#4A3F35", "#FFFFFF"],
-      visualComposition: "Wide-angle architectural interior framing with balanced negative space",
-      lightingStyle: "Floor-to-ceiling sheer window diffused sunlight with gentle organic shadows",
-      adCreativeAngle: "Elevate your sanctuary with timeless mindful design",
-      likesOrSaves: "45.2k saves",
+      id: "pin-gen-1",
+      title: "Clean Editorial Product Layout with Negative Space",
+      description: "High-contrast commercial advertising hero composition with soft natural key light.",
+      imageUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=800&q=80",
+      pinUrl: "https://www.pinterest.com/search/pins/?q=product+photography",
+      board: "Commercial Key Visuals",
+      aestheticTags: ["Commercial Hero", "Clean Studio", "High CTR"],
+      colorScheme: ["#E60023", "#0F172A", "#FFFFFF"],
+      visualComposition: "Golden ratio rule-of-thirds product placement",
+      lightingStyle: "Diffused studio strobe with edge backlight",
+      adCreativeAngle: "High-stopping-power visual hook",
+      likesOrSaves: "32.4k saves",
     },
   ],
 };
 
 // 1. Live Pinterest Scraper API Integration (https://pinterest-scraper.omkar.cloud)
-async function searchPinterestViaScraperApi(
+async function fetchPinsFromOmkarScraper(
   query: string,
   scraperKey?: string
 ): Promise<PinterestPin[]> {
@@ -76,7 +75,7 @@ async function searchPinterestViaScraperApi(
       const data = await res.json();
       const profiles = data.profiles || [];
 
-      // Fetch top 3 creator profiles' detailed pins in parallel
+      // 1. Fetch detailed pins from top 3 creator profiles in parallel
       const topProfiles = profiles.slice(0, 3);
       const userPinPromises = topProfiles.map(async (profile: any) => {
         try {
@@ -98,7 +97,7 @@ async function searchPinterestViaScraperApi(
             }));
           }
         } catch (e) {
-          // ignore single creator pin failure
+          // ignore single creator failure
         }
         return [];
       });
@@ -106,14 +105,32 @@ async function searchPinterestViaScraperApi(
       const detailedPinsNested = await Promise.all(userPinPromises);
       const detailedPins = detailedPinsNested.flat();
 
-      // Process detailed pins first
+      // Process detailed pins
       detailedPins.forEach((pinObj: any, idx: number) => {
+        // High-resolution image: priority 736x -> 474x -> 236x
         const imgUrl =
           pinObj.images?.["736x"]?.url ||
           pinObj.images?.["474x"]?.url ||
-          pinObj.images?.["236x"]?.url;
+          pinObj.images?.["236x"]?.url ||
+          pinObj.images?.["170x"]?.url;
 
-        if (imgUrl && pins.length < 15) {
+        // Video URL if available
+        let videoUrl: string | undefined = undefined;
+        let isVideo = Boolean(pinObj.is_video || pinObj.videos);
+        if (pinObj.videos) {
+          if (typeof pinObj.videos === "string") {
+            videoUrl = pinObj.videos;
+          } else if (pinObj.videos.video_list) {
+            const videoKeys = Object.keys(pinObj.videos.video_list);
+            if (videoKeys.length > 0) {
+              videoUrl = pinObj.videos.video_list[videoKeys[0]]?.url;
+            }
+          } else if (pinObj.videos.url) {
+            videoUrl = pinObj.videos.url;
+          }
+        }
+
+        if (imgUrl && pins.length < 18) {
           const title =
             pinObj.title ||
             pinObj.grid_title ||
@@ -126,17 +143,23 @@ async function searchPinterestViaScraperApi(
             `Trending Pinterest visual for ${query}`;
 
           pins.push({
-            id: pinObj.pin_id || `live-pin-${idx}-${Date.now()}`,
+            id: pinObj.pin_id || `pin-${idx}-${Date.now()}`,
             title,
             description: desc,
             imageUrl: imgUrl,
+            videoUrl,
+            isVideo,
             pinUrl: pinObj.permalink
               ? `https://www.pinterest.com${pinObj.permalink}`
               : `https://www.pinterest.com/pin/${pinObj.pin_id}/`,
             board: pinObj.board?.name || `${pinObj._authorProfile?.display_name || "Trending"} Board`,
             authorUsername: pinObj.author?.username || pinObj._authorProfile?.username,
             authorName: pinObj.author?.display_name || pinObj._authorProfile?.display_name,
-            aestheticTags: [query.split(" ")[0] || "Aesthetic", "Live Scraper API", "High CTR"],
+            authorAvatar:
+              pinObj.author?.avatar_url ||
+              pinObj._authorProfile?.avatars?.large ||
+              pinObj._authorProfile?.avatars?.medium,
+            aestheticTags: [query.split(" ")[0] || "Aesthetic", "Live Pinterest", isVideo ? "Video Pin" : "Image Pin"],
             colorScheme: [
               pinObj.dominant_color || "#E60023",
               "#0F172A",
@@ -149,103 +172,48 @@ async function searchPinterestViaScraperApi(
             likesOrSaves: pinObj.reactions?.["1"]
               ? `${pinObj.reactions["1"]} saves`
               : `${Math.floor(Math.random() * 20 + 5)}k saves`,
-            isFromLiveApi: true,
           });
         }
       });
 
-      // If needed, also extract high-res images from profiles' recent_pins_gallery
-      if (pins.length < 8) {
-        profiles.forEach((prof: any) => {
-          (prof.recent_pins_gallery || []).forEach((gPin: any, gIdx: number) => {
-            if (gPin.url && pins.length < 15) {
-              // Convert 222x thumbnail URL to high-resolution 736x
-              const highResUrl = gPin.url.replace(/\/222x\//, "/736x/").replace(/\/75x75\//, "/736x/");
-              pins.push({
-                id: `gallery-pin-${prof.user_id}-${gIdx}`,
-                title: `${prof.display_name} - ${query} Inspiration`,
-                description: `Trending pin curated by @${prof.username} (${prof.followers?.toLocaleString()} followers)`,
-                imageUrl: highResUrl,
-                pinUrl: `https://www.pinterest.com/${prof.username}/`,
-                board: prof.display_name || "Top Ranked Creator Board",
-                authorUsername: prof.username,
-                authorName: prof.display_name,
-                aestheticTags: [query.split(" ")[0] || "Aesthetic", "Top Creator", "Trending"],
-                colorScheme: [gPin.primary_color || "#E60023", "#1E293B", "#FFFFFF"],
-                visualComposition: "Commercial editorial layout with organic visual flow",
-                lightingStyle: "High-contrast aesthetic daylight",
-                adCreativeAngle: "Proven viral Pinterest aesthetic",
-                likesOrSaves: `${(prof.followers / 1000).toFixed(1)}k followers`,
-                isFromLiveApi: true,
-              });
-            }
-          });
+      // 2. Also extract high-res images from profiles' recent_pins_gallery
+      profiles.forEach((prof: any) => {
+        (prof.recent_pins_gallery || []).forEach((gPin: any, gIdx: number) => {
+          if (gPin.url && pins.length < 20) {
+            // Convert 222x thumbnail URL to high-resolution 736x
+            const highResUrl = gPin.url
+              .replace(/\/222x\//, "/736x/")
+              .replace(/\/75x75\//, "/736x/");
+
+            pins.push({
+              id: `gallery-pin-${prof.user_id}-${gIdx}`,
+              title: `${prof.display_name} - ${query} Inspiration`,
+              description: `Trending pin curated by @${prof.username} (${prof.followers?.toLocaleString()} followers)`,
+              imageUrl: highResUrl,
+              pinUrl: `https://www.pinterest.com/${prof.username}/`,
+              board: prof.display_name || "Top Ranked Creator Board",
+              authorUsername: prof.username,
+              authorName: prof.display_name,
+              authorAvatar: prof.avatars?.large || prof.avatars?.medium,
+              aestheticTags: [query.split(" ")[0] || "Aesthetic", "Top Creator", "Trending"],
+              colorScheme: [gPin.primary_color || "#E60023", "#1E293B", "#FFFFFF"],
+              visualComposition: "Commercial editorial layout with organic visual flow",
+              lightingStyle: "High-contrast aesthetic daylight",
+              adCreativeAngle: "Proven viral Pinterest aesthetic",
+              likesOrSaves: `${(prof.followers / 1000).toFixed(1)}k followers`,
+            });
+          }
         });
-      }
+      });
     }
   } catch (err) {
-    console.warn("Pinterest Scraper API fetch failed, falling back to backup discovery:", err);
+    console.warn("Omkar Pinterest Scraper API error:", err);
   }
 
   return pins;
 }
 
-// 2. Official Pinterest Token Pins (Sandbox / Production)
-async function fetchOfficialPinterestPins(token: string, isSandbox: boolean = true): Promise<PinterestPin[]> {
-  const accountPins: PinterestPin[] = [];
-  const baseUrls = isSandbox
-    ? ["https://api-sandbox.pinterest.com/v5", "https://api.pinterest.com/v5"]
-    : ["https://api.pinterest.com/v5", "https://api-sandbox.pinterest.com/v5"];
-
-  for (const baseUrl of baseUrls) {
-    try {
-      const pinsRes = await fetch(`${baseUrl}/pins?page_size=25`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        signal: AbortSignal.timeout(5000),
-      });
-
-      if (pinsRes.ok) {
-        const data = await pinsRes.json();
-        if (data.items && Array.isArray(data.items)) {
-          data.items.forEach((item: any) => {
-            const imgUrl =
-              item.media?.images?.["736x"]?.url ||
-              item.media?.images?.["600x"]?.url ||
-              item.media?.images?.originals?.url;
-
-            if (imgUrl) {
-              accountPins.push({
-                id: item.id || `pin-${Math.random().toString(36).substr(2, 6)}`,
-                title: item.title || item.alt_text || "Pinterest Account Pin",
-                description: item.description || "Pin retrieved via Pinterest token",
-                imageUrl: imgUrl,
-                pinUrl: item.link || `https://www.pinterest.com/pin/${item.id}`,
-                board: baseUrl.includes("sandbox") ? "🧪 Sandbox Board" : "📌 Account Board",
-                aestheticTags: ["Account Pin", baseUrl.includes("sandbox") ? "Sandbox API" : "Prod API"],
-                colorScheme: ["#E60023", "#0F172A", "#FFFFFF"],
-                visualComposition: "Official Pinterest visual seed for Nano Banana Pro prompts",
-                lightingStyle: "High-end commercial lighting",
-                adCreativeAngle: "Direct brand visual asset hook",
-                likesOrSaves: baseUrl.includes("sandbox") ? "Sandbox API" : "Live API",
-                isFromLiveApi: true,
-              });
-            }
-          });
-          if (accountPins.length > 0) break;
-        }
-      }
-    } catch (err) {
-      console.warn(`Error fetching Pinterest API from ${baseUrl}:`, err);
-    }
-  }
-
-  return accountPins;
-}
-
-// 3. Gemini Creative Director Pin Scoring & Audience Alignment
+// 2. Gemini Creative Director Pin Scoring & Audience Alignment
 async function scorePinsWithGeminiDirector(
   pins: PinterestPin[],
   brandProfile?: BrandProfile,
@@ -270,12 +238,12 @@ async function scorePinsWithGeminiDirector(
       .slice(0, 15)
       .map(
         (p, i) =>
-          `Pin ${i + 1} (ID: ${p.id}): Title: "${p.title}" | Desc: "${p.description}" | Board: ${p.board}`
+          `Pin ${i + 1} (ID: ${p.id}): Title: "${p.title}" | Desc: "${p.description}" | Board: ${p.board} | Creator: @${p.authorUsername || "creator"}`
       )
       .join("\n");
 
     const promptText = `
-You are an elite Chief Creative Officer. Evaluate these live Pinterest Pins for this brand:
+You are an elite Chief Creative Officer. Evaluate these real Pinterest Pins for this brand:
 Brand: ${brandProfile.name} (${brandProfile.productType} in ${brandProfile.industry})
 Target Persona: ${brandProfile.targetAudience.primaryPersona}
 Audience Demographics: ${JSON.stringify(brandProfile.targetAudience.demographics)}
@@ -326,39 +294,29 @@ Return a STRICT JSON array:
   }
 }
 
-// 4. Main Search Pipeline
+// 3. Master Pinterest Search Pipeline
 export async function searchPinterestPins(
   query: string,
   categoryHint?: string,
-  customToken?: string,
-  useSandbox: boolean = true,
   brandProfile?: BrandProfile,
   geminiApiKey?: string,
   scraperApiKey?: string
 ): Promise<PinterestPin[]> {
   let results: PinterestPin[] = [];
 
-  // A. Primary: Live Pinterest Scraper API (https://pinterest-scraper.omkar.cloud)
-  const scraperPins = await searchPinterestViaScraperApi(query, scraperApiKey);
-  if (scraperPins.length > 0) {
-    results.push(...scraperPins);
+  // A. Fetch live Pinterest pins from Omkar Scraper API
+  const livePins = await fetchPinsFromOmkarScraper(query, scraperApiKey);
+  if (livePins.length > 0) {
+    results.push(...livePins);
   }
 
-  // B. If user also has official Pinterest Sandbox/Prod Token, pull account pins
-  if (customToken) {
-    const apiPins = await fetchOfficialPinterestPins(customToken, useSandbox);
-    if (apiPins.length > 0) {
-      results.push(...apiPins);
-    }
-  }
-
-  // C. Fallback: Curated library if needed
+  // B. Fallback to curated aesthetic library if needed
   if (results.length < 4) {
     const allLibrary = Object.values(CURATED_AESTHETICS_LIBRARY).flat();
     results.push(...allLibrary);
   }
 
-  // Deduplicate
+  // Deduplicate by Image URL / ID
   const seen = new Set<string>();
   const deduplicated = results.filter((pin) => {
     const key = pin.imageUrl || pin.id;
@@ -367,7 +325,7 @@ export async function searchPinterestPins(
     return true;
   });
 
-  // D. Gemini AI Creative Director Pin Scoring
+  // C. Gemini AI Creative Director Pin Scoring & Annotation
   const scoredPins = await scorePinsWithGeminiDirector(deduplicated, brandProfile, geminiApiKey);
 
   // Sort by Gemini Fit Score descending

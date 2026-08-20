@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Sparkles, SlidersHorizontal, Layers, Compass, FlaskConical, Globe } from "lucide-react";
+import { Sparkles, SlidersHorizontal, Layers, Compass, Search } from "lucide-react";
 import { ApiSettings } from "@/lib/types";
 
 interface NavbarProps {
@@ -12,9 +12,6 @@ interface NavbarProps {
 }
 
 export function Navbar({ onOpenSettings, onReset, currentStep, apiSettings }: NavbarProps) {
-  const hasPinterestToken = Boolean(apiSettings?.pinterestToken);
-  const isSandbox = apiSettings?.useSandbox !== false;
-
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -52,7 +49,7 @@ export function Navbar({ onOpenSettings, onReset, currentStep, apiSettings }: Na
           <span className="text-slate-600">→</span>
           <span className="flex items-center gap-1 text-slate-400">
             <Compass className="w-3.5 h-3.5 text-amber-400" />
-            Pinterest {isSandbox ? "Sandbox" : "Trends"}
+            Live Pinterest Discovery
           </span>
           <span className="text-slate-600">→</span>
           <span className="flex items-center gap-1 text-rose-400 font-medium">
@@ -61,34 +58,17 @@ export function Navbar({ onOpenSettings, onReset, currentStep, apiSettings }: Na
           </span>
         </div>
 
-        {/* Action Controls & Pinterest Token Status */}
+        {/* Action Controls & Pinterest Search Status */}
         <div className="flex items-center gap-3">
-          {/* Pinterest Token Badge */}
+          {/* Pinterest Search Badge */}
           <button
             onClick={onOpenSettings}
-            className={`hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold border transition ${
-              hasPinterestToken
-                ? isSandbox
-                  ? "bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20"
-                  : "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
-                : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
-            }`}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500/20 rounded-xl text-xs font-semibold transition"
           >
-            {hasPinterestToken ? (
-              isSandbox ? (
-                <FlaskConical className="w-3 h-3 text-amber-400" />
-              ) : (
-                <Globe className="w-3 h-3 text-emerald-400" />
-              )
-            ) : (
-              <span className="w-2 h-2 rounded-full bg-slate-500" />
-            )}
-            <span>
-              {hasPinterestToken
-                ? isSandbox
-                  ? "Pinterest: Sandbox Connected"
-                  : "Pinterest: Prod Connected"
-                : "Connect Pinterest Token"}
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="flex items-center gap-1">
+              <Search className="w-3 h-3 text-rose-400" />
+              Live Pinterest API: Connected
             </span>
           </button>
 
