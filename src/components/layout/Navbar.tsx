@@ -1,15 +1,19 @@
 "use client";
 
 import React from "react";
-import { Sparkles, SlidersHorizontal, Layers, PlaySquare, Compass } from "lucide-react";
+import { Sparkles, SlidersHorizontal, Layers, Compass, CheckCircle2 } from "lucide-react";
+import { ApiSettings } from "@/lib/types";
 
 interface NavbarProps {
   onOpenSettings: () => void;
   onReset: () => void;
   currentStep: number;
+  apiSettings?: ApiSettings;
 }
 
-export function Navbar({ onOpenSettings, onReset, currentStep }: NavbarProps) {
+export function Navbar({ onOpenSettings, onReset, currentStep, apiSettings }: NavbarProps) {
+  const hasPinterestToken = Boolean(apiSettings?.pinterestToken);
+
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -39,7 +43,7 @@ export function Navbar({ onOpenSettings, onReset, currentStep }: NavbarProps) {
         </div>
 
         {/* Center Pill Indicators */}
-        <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/90 border border-slate-800 rounded-full text-xs text-slate-300">
+        <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/90 border border-slate-800 rounded-full text-xs text-slate-300">
           <span className="flex items-center gap-1 text-slate-400">
             <Layers className="w-3.5 h-3.5 text-rose-400" />
             URL / PlayStore
@@ -56,20 +60,37 @@ export function Navbar({ onOpenSettings, onReset, currentStep }: NavbarProps) {
           </span>
         </div>
 
-        {/* Action Controls */}
+        {/* Action Controls & Pinterest Token Status */}
         <div className="flex items-center gap-3">
+          {/* Pinterest Token Badge */}
+          <button
+            onClick={onOpenSettings}
+            className={`hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold border transition ${
+              hasPinterestToken
+                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
+                : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <span
+              className={`w-2 h-2 rounded-full ${
+                hasPinterestToken ? "bg-emerald-400 animate-pulse" : "bg-slate-500"
+              }`}
+            />
+            <span>{hasPinterestToken ? "Pinterest API: Connected" : "Connect Pinterest Token"}</span>
+          </button>
+
           <button
             onClick={onOpenSettings}
             className="flex items-center gap-2 px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-medium transition"
           >
             <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400" />
-            <span>API Settings</span>
+            <span className="hidden sm:inline">Settings</span>
           </button>
 
           {currentStep > 1 && (
             <button
               onClick={onReset}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-300 text-xs font-medium rounded-xl transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-300 text-xs font-medium rounded-xl transition"
             >
               New Campaign
             </button>

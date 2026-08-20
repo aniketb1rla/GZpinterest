@@ -1,3 +1,4 @@
+import * as cheerio from "cheerio";
 import { PinterestPin } from "./types";
 
 // Curated high-aesthetic pin database representing top-converting Pinterest ad formats & visual hooks
@@ -182,6 +183,123 @@ const CURATED_AESTHETICS_LIBRARY: Record<string, PinterestPin[]> = {
   ],
 };
 
+// 1. Fetch Official Pinterest API Pins (User Pins & Boards)
+async function fetchOfficialPinterestPins(token: string): Promise<PinterestPin[]> {
+  const accountPins: PinterestPin[] = [];
+
+  try {
+    // 1. Fetch User Pins
+    const pinsRes = await fetch("https://api.pinterest.com/v5/pins?page_size=25", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      signal: AbortSignal.timeout(6000),
+    });
+
+    if (pinsRes.ok) {
+      const data = await pinsRes.json();
+      if (data.items && Array.isArray(data.items)) {
+        data.items.forEach((item: any) => {
+          const imgUrl =
+            item.media?.images?.["600x"]?.url ||
+            item.media?.images?.["1200x"]?.url ||
+            item.media?.images?.originals?.url ||
+            item.media?.images?.["736x"]?.url;
+
+          if (imgUrl) {
+            accountPins.push({
+              id: item.id || `pin-${Math.random().toString(36).substr(2, 6)}`,
+              title: item.title || item.alt_text || "Pinterest Account Pin",
+              description: item.description || "Pin imported directly from your Pinterest account",
+              imageUrl: imgUrl,
+              pinUrl: item.link || `https://www.pinterest.com/pin/${item.id}`,
+              board: "📌 Your Pinterest Account",
+              aestheticTags: ["Account Pin", "Official API", "Verified"],
+              colorScheme: ["#E60023", "#0F172A", "#FFFFFF"],
+              visualComposition: "Official Pinterest visual seed for campaign ad generation",
+              lightingStyle: "High-resolution commercial lighting",
+              adCreativeAngle: "Authentic brand creative hook",
+              likesOrSaves: "Official Pin",
+            });
+          }
+        });
+      }
+    }
+  } catch (err) {
+    console.warn("Error fetching official Pinterest API pins:", err);
+  }
+
+  return accountPins;
+}
+
+// 2. Live Public Pinterest Visual Search Scraper
+async function searchLivePinterestWeb(query: string): Promise<PinterestPin[]> {
+  const pins: PinterestPin[] = [];
+  try {
+    const searchUrl = `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(query)}`;
+    const res = await fetch(searchUrl, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+      signal: AbortSignal.timeout(6000),
+    });
+
+    if (res.ok) {
+      const html = await res.text();
+      const $ = cheerio.load(html);
+
+      // Search for Pinterest initial JSON data
+      $('script[id="__PWS_DATA__"], script[data-test-id="initial-data"]').each((_, el) => {
+        try {
+          const jsonText = $(el).html();
+          if (jsonText) {
+            const parsed = JSON.parse(jsonText);
+            const rawPins =
+              parsed.props?.initialReduxState?.pins ||
+              parsed.props?.initialData?.data?.results ||
+              [];
+
+            Object.values(rawPins).forEach((pinObj: any, idx: number) => {
+              const img =
+                pinObj.images?.["736x"]?.url ||
+                pinObj.images?.["orig"]?.url ||
+                pinObj.images?.["600x"]?.url;
+
+              if (img && pins.length < 12) {
+                pins.push({
+                  id: pinObj.id || `live-pin-${idx}`,
+                  title: pinObj.title || pinObj.grid_title || `${query} Visual Inspo`,
+                  description: pinObj.description || `Trending visual style for ${query}`,
+                  imageUrl: img,
+                  pinUrl: `https://www.pinterest.com/pin/${pinObj.id || ""}`,
+                  board: pinObj.board?.name || "Trending Pinterest Feed",
+                  aestheticTags: [query.split(" ")[0] || "Trending", "Pinterest Live", "High CTR"],
+                  colorScheme: ["#E60023", "#1E293B", "#F8FAFC"],
+                  visualComposition: "High-stopping-power Pinterest visual composition",
+                  lightingStyle: "Natural ambient studio light",
+                  adCreativeAngle: "Trending consumer visual hook",
+                  likesOrSaves: `${Math.floor(Math.random() * 20 + 10)}k saves`,
+                });
+              }
+            });
+          }
+        } catch (e) {
+          // ignore parsing errors
+        }
+      });
+    }
+  } catch (e) {
+    console.warn("Live Pinterest web search fallback:", e);
+  }
+
+  return pins;
+}
+
+// 3. Main Pinterest Search Function
 export async function searchPinterestPins(
   query: string,
   categoryHint?: string,
@@ -190,123 +308,55 @@ export async function searchPinterestPins(
   const normalizedQuery = query.toLowerCase().trim();
   const token = customToken || process.env.PINTEREST_ACCESS_TOKEN;
 
-  // If user provided official Pinterest Token and is online, try fetching live Pinterest pins
-  if (token) {
-    try {
-      const response = await fetch(
-        `https://api.pinterest.com/v5/pins?page_size=15&query=${encodeURIComponent(query)}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          signal: AbortSignal.timeout(6000),
-        }
-      );
+  let results: PinterestPin[] = [];
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.items && data.items.length > 0) {
-          return data.items.map((item: any, idx: number) => ({
-            id: item.id || `live-pin-${idx}`,
-            title: item.title || item.alt_text || `Inspiration: ${query}`,
-            description: item.description || "Curated aesthetic visual trend from Pinterest",
-            imageUrl: item.media?.images?.["600x"]?.url || item.media?.images?.originals?.url || "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=800&q=80",
-            pinUrl: item.link || `https://www.pinterest.com/pin/${item.id}`,
-            board: item.board_id || "Trending Ad Aesthetics",
-            aestheticTags: [query.split(" ")[0] || "Aesthetic", "Visual Trend", "Ad Creative", "High CTR"],
-            colorScheme: ["#1F2937", "#EC4899", "#8B5CF6", "#F3F4F6"],
-            visualComposition: "Commercial hero product framing with clean negative space for typography overlays",
-            lightingStyle: "High-end commercial studio strobe lighting",
-            adCreativeAngle: "Visual hook highlighting instant product desirability",
-            likesOrSaves: `${Math.floor(Math.random() * 30 + 10)}.${Math.floor(Math.random() * 9)}k saves`,
-          }));
-        }
-      }
-    } catch (e) {
-      console.warn("Pinterest API fetch failed, falling back to visual intelligence engine", e);
+  // A. If official token is provided, fetch official user pins first
+  if (token) {
+    const apiPins = await fetchOfficialPinterestPins(token);
+    if (apiPins.length > 0) {
+      results.push(...apiPins);
     }
   }
 
-  // Dynamic Visual Intelligence Engine: Matches aesthetic database or generates relevant pins
-  const allLibraryPins = Object.values(CURATED_AESTHETICS_LIBRARY).flat();
+  // B. Try live Pinterest visual search
+  const livePins = await searchLivePinterestWeb(query);
+  if (livePins.length > 0) {
+    results.push(...livePins);
+  }
 
-  // Score pins based on query match
+  // C. Match Curated Aesthetic Library
+  const allLibraryPins = Object.values(CURATED_AESTHETICS_LIBRARY).flat();
   const scored = allLibraryPins.map((pin) => {
     let score = 0;
     const combinedText = `${pin.title} ${pin.description} ${pin.aestheticTags.join(" ")} ${pin.board}`.toLowerCase();
-    
     const queryTokens = normalizedQuery.split(/\s+/).filter(Boolean);
-    queryTokens.forEach((token) => {
-      if (combinedText.includes(token)) score += 3;
+
+    queryTokens.forEach((tok) => {
+      if (combinedText.includes(tok)) score += 3;
     });
 
-    if (categoryHint) {
-      const hint = categoryHint.toLowerCase();
-      if (combinedText.includes(hint)) score += 5;
+    if (categoryHint && combinedText.includes(categoryHint.toLowerCase())) {
+      score += 5;
     }
 
     return { pin, score };
   });
 
   scored.sort((a, b) => b.score - a.score);
-  let matchedPins = scored.filter((s) => s.score > 0).map((s) => s.pin);
+  const libraryMatches = scored.filter((s) => s.score > 0).map((s) => s.pin);
+  results.push(...libraryMatches);
 
-  // If few matches found, provide a rich hybrid collection tailored to the query
-  if (matchedPins.length < 4) {
-    const generatedAestheticPins: PinterestPin[] = [
-      {
-        id: `gen-pin-${Date.now()}-1`,
-        title: `${query.charAt(0).toUpperCase() + query.slice(1)} - Clean Commercial Editorial`,
-        description: `Ultra crisp commercial aesthetic for ${query}. Elegant negative space with vibrant focal point and editorial typography placement.`,
-        imageUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=800&q=80",
-        pinUrl: `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(query)}`,
-        board: "Top Converting Meta & Google Creatives",
-        aestheticTags: ["Commercial Hero", "High Conversion", "Clean Studio", "Vibrant Contrast"],
-        colorScheme: ["#E60023", "#1E293B", "#F8FAFC", "#F59E0B"],
-        visualComposition: "Rule of thirds composition with ample contrast and clean canvas for hook text overlay",
-        lightingStyle: "Softbox diffused key light with subtle colored edge backlight",
-        adCreativeAngle: "Direct visual proof showing immediate transformation",
-        likesOrSaves: "34.2k saves",
-      },
-      {
-        id: `gen-pin-${Date.now()}-2`,
-        title: `${query} - UGC Lifestyle Reel & Story Aesthetic`,
-        description: `Authentic user-generated aesthetic with natural handheld perspective, real-life context, and high engagement hook.`,
-        imageUrl: "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=800&q=80",
-        pinUrl: `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(query + " aesthetic")}`,
-        board: "Viral UGC Ads & Story Formats",
-        aestheticTags: ["UGC", "Authentic", "Mobile Story", "9:16 Optimized", "Candid Hook"],
-        colorScheme: ["#FFF1F2", "#E11D48", "#475569", "#FFFFFF"],
-        visualComposition: "Vertical 9:16 portrait perspective showing authentic product interaction",
-        lightingStyle: "Natural ambient daylight with warm fill",
-        adCreativeAngle: "Relatable storytelling: 'I tested this for 30 days and here is what happened'",
-        likesOrSaves: "52.8k saves",
-      },
-      {
-        id: `gen-pin-${Date.now()}-3`,
-        title: `${query} - Minimalist 3D Hyper-Render`,
-        description: `3D architectural podium with floating elements, tactile textures, and futuristic luxury finish.`,
-        imageUrl: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80",
-        pinUrl: `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(query + " 3d aesthetic")}`,
-        board: "Futuristic 3D Ad Creatives",
-        aestheticTags: ["3D Render", "Podium", "Tactile Textures", "Futuristic", "High Tech"],
-        colorScheme: ["#0B0F19", "#3B82F6", "#10B981", "#E2E8F0"],
-        visualComposition: "Centered isometric podium with floating geometric particle accents",
-        lightingStyle: "Atmospheric volumetric lighting with chromatic aberration accents",
-        adCreativeAngle: "Next-generation engineering and unparalleled build quality",
-        likesOrSaves: "28.4k saves",
-      },
-    ];
-
-    matchedPins = [...matchedPins, ...generatedAestheticPins, ...allLibraryPins.slice(0, 4)];
+  // D. Ensure plenty of high-aesthetic fallback pins if results are sparse
+  if (results.length < 4) {
+    results.push(...allLibraryPins.slice(0, 6));
   }
 
-  // Deduplicate by ID
+  // Deduplicate pins by ID or image URL
   const seen = new Set<string>();
-  return matchedPins.filter((pin) => {
-    if (seen.has(pin.id)) return false;
-    seen.add(pin.id);
+  return results.filter((pin) => {
+    const key = pin.imageUrl || pin.id;
+    if (seen.has(key)) return false;
+    seen.add(key);
     return true;
   });
 }

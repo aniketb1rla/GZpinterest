@@ -54,6 +54,12 @@ export default function Home() {
     } catch (e) {
       console.log("Settings save skipped");
     }
+
+    // If already on or past Step 2 and has brand profile, refresh Pinterest pins using new token
+    if (brandProfile) {
+      const pinQuery = brandProfile.pinterestStrategy.searchQueries[0] || brandProfile.name;
+      handleSearchPinterestPins(pinQuery, settings.pinterestToken);
+    }
   };
 
   const goToStep = (step: number) => {
@@ -110,8 +116,8 @@ export default function Home() {
         }
       }
 
-      // 3. Pre-fetch initial Pinterest Pins
-      setLoadingStatus("Mining Pinterest Visual Trends & Aesthetics...");
+      // 3. Pre-fetch initial Pinterest Pins with Token
+      setLoadingStatus("Mining Pinterest Visual Trends & Account Pins...");
       try {
         const pinQuery = profile.pinterestStrategy.searchQueries[0] || profile.name;
         const pinRes = await fetch("/api/pinterest-search", {
@@ -144,7 +150,7 @@ export default function Home() {
   };
 
   // Step 3: Search Pinterest Pins
-  const handleSearchPinterestPins = async (query: string) => {
+  const handleSearchPinterestPins = async (query: string, overrideToken?: string) => {
     setIsLoading(true);
     try {
       const res = await fetch("/api/pinterest-search", {
@@ -153,7 +159,7 @@ export default function Home() {
         body: JSON.stringify({
           query,
           categoryHint: brandProfile?.industry,
-          pinterestToken: apiSettings.pinterestToken,
+          pinterestToken: overrideToken !== undefined ? overrideToken : apiSettings.pinterestToken,
         }),
       });
       const data = await res.json();
@@ -252,6 +258,7 @@ export default function Home() {
         onOpenSettings={() => setIsSettingsOpen(true)}
         onReset={handleReset}
         currentStep={currentStep}
+        apiSettings={apiSettings}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
