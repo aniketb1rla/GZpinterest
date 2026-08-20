@@ -87,6 +87,9 @@ export interface PinterestPin {
   adCreativeAngle: string;
   likesOrSaves?: string;
   selected?: boolean;
+  isFromSandboxApi?: boolean;
+  geminiFitScore?: number;
+  geminiFitReason?: string;
 }
 
 export type AssetType = "product_image" | "logo" | "moodboard" | "reference";
@@ -170,5 +173,6 @@ export interface CampaignBrief {
 export interface ApiSettings {
   geminiApiKey?: string;
   pinterestToken?: string;
+  useSandbox?: boolean;
   nanoBananaEndpoint?: string;
 }

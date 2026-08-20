@@ -30,7 +30,9 @@ export default function Home() {
   const [metaAdSets, setMetaAdSets] = useState<NanoBananaPrompt[]>([]);
   const [googleAdSets, setGoogleAdSets] = useState<NanoBananaPrompt[]>([]);
 
-  const [apiSettings, setApiSettings] = useState<ApiSettings>({});
+  const [apiSettings, setApiSettings] = useState<ApiSettings>({
+    useSandbox: true,
+  });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState("");
@@ -40,7 +42,7 @@ export default function Home() {
     try {
       const saved = localStorage.getItem("gz_pinterest_settings");
       if (saved) {
-        setApiSettings(JSON.parse(saved));
+        setApiSettings((prev) => ({ ...prev, ...JSON.parse(saved) }));
       }
     } catch (e) {
       console.log("Settings load skipped");
@@ -55,12 +57,14 @@ export default function Home() {
     }
   }, []);
 
-  // Search Pinterest Pins
+  // Search Pinterest Pins with Gemini Creative Director scoring
   const handleSearchPinterestPins = useCallback(
-    async (query: string, overrideToken?: string) => {
+    async (query: string, overrideToken?: string, overrideSandbox?: boolean) => {
       setIsLoading(true);
       try {
         const token = overrideToken !== undefined ? overrideToken : apiSettings.pinterestToken;
+        const isSandbox = overrideSandbox !== undefined ? overrideSandbox : apiSettings.useSandbox !== false;
+
         const res = await fetch("/api/pinterest-search", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -68,6 +72,9 @@ export default function Home() {
             query,
             categoryHint: brandProfile?.industry,
             pinterestToken: token,
+            useSandbox: isSandbox,
+            brandProfile,
+            geminiApiKey: apiSettings.geminiApiKey,
           }),
         });
         const data = await res.json();
@@ -80,7 +87,7 @@ export default function Home() {
         setIsLoading(false);
       }
     },
-    [apiSettings.pinterestToken, brandProfile?.industry]
+    [apiSettings.pinterestToken, apiSettings.useSandbox, apiSettings.geminiApiKey, brandProfile]
   );
 
   const handleSaveSettings = useCallback(
@@ -94,7 +101,7 @@ export default function Home() {
 
       if (brandProfile) {
         const pinQuery = brandProfile.pinterestStrategy.searchQueries[0] || brandProfile.name;
-        handleSearchPinterestPins(pinQuery, settings.pinterestToken);
+        handleSearchPinterestPins(pinQuery, settings.pinterestToken, settings.useSandbox);
       }
     },
     [brandProfile, handleSearchPinterestPins]
@@ -146,8 +153,8 @@ export default function Home() {
         }
       }
 
-      // 3. Pre-fetch initial Pinterest Pins with Token
-      setLoadingStatus("Mining Pinterest Visual Trends & Account Pins...");
+      // 3. Pre-fetch initial Pinterest Pins with Token & Gemini Scoring
+      setLoadingStatus("Mining Pinterest Visual Trends with Gemini AI...");
       try {
         const pinQuery = profile.pinterestStrategy.searchQueries[0] || profile.name;
         const pinRes = await fetch("/api/pinterest-search", {
@@ -157,6 +164,9 @@ export default function Home() {
             query: pinQuery,
             categoryHint: profile.industry,
             pinterestToken: apiSettings.pinterestToken,
+            useSandbox: apiSettings.useSandbox !== false,
+            brandProfile: profile,
+            geminiApiKey: apiSettings.geminiApiKey,
           }),
         });
         const pinData = await pinRes.json();
@@ -204,6 +214,8 @@ export default function Home() {
       visualComposition: customPin.visualComposition || "Custom framing",
       lightingStyle: customPin.lightingStyle || "Custom lighting",
       adCreativeAngle: customPin.adCreativeAngle || "Direct aesthetic reference",
+      geminiFitScore: 95,
+      geminiFitReason: "Custom reference curated specifically for this campaign.",
     };
     setPinterestPins((prev) => [fullPin, ...prev]);
     setSelectedPins((prev) => [fullPin, ...prev]);

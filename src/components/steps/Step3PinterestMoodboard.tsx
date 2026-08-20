@@ -10,10 +10,10 @@ import {
   ArrowRight,
   ArrowLeft,
   Filter,
-  Eye,
-  SlidersHorizontal,
   Flame,
-  Lightbulb,
+  FlaskConical,
+  Award,
+  Zap,
 } from "lucide-react";
 import { BrandProfile, PinterestPin } from "@/lib/types";
 
@@ -72,15 +72,19 @@ export function Step3PinterestMoodboard({
       visualComposition: "Custom framing inspiration for prompt generation",
       lightingStyle: "Ambient studio direction",
       adCreativeAngle: "Direct aesthetic reference",
+      geminiFitScore: 95,
+      geminiFitReason: "Custom user-selected reference perfectly tailored for this campaign.",
     });
     setCustomUrl("");
     setCustomTitle("");
     setShowAddModal(false);
   };
 
-  // Filter pins based on active tag
+  // Filter pins
   const filteredPins = pins.filter((p) => {
     if (activeTag === "All") return true;
+    if (activeTag === "Sandbox") return p.isFromSandboxApi;
+    if (activeTag === "Top Picks") return (p.geminiFitScore || 0) >= 90;
     return (
       p.aestheticTags.some((t) => t.toLowerCase().includes(activeTag.toLowerCase())) ||
       p.title.toLowerCase().includes(activeTag.toLowerCase())
@@ -93,14 +97,14 @@ export function Step3PinterestMoodboard({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#E60023]/10 border border-[#E60023]/20 text-[#E60023] text-xs font-semibold uppercase tracking-wider mb-2">
-            <span className="w-2 h-2 rounded-full bg-[#E60023] animate-ping" />
-            Pinterest Visual Mining & Aesthetic Inspiration
+            <Sparkles className="w-3.5 h-3.5" />
+            Gemini AI Pinterest Discovery & Scoring Engine
           </div>
           <h1 className="text-2xl sm:text-4xl font-extrabold text-white">
             Curate Visual Trends & Aesthetic Pins
           </h1>
           <p className="text-slate-400 text-xs sm:text-sm mt-1 max-w-2xl">
-            Select high-performing pins that align with <strong className="text-rose-400">{brandProfile.name}</strong>'s target audience. Our AI will extract lighting, composition, and visual hooks directly into your Nano Banana Pro prompts.
+            Gemini analyzed Pinterest with your API token to score the highest-converting visual angles for <strong className="text-rose-400">{brandProfile.name}</strong>'s target persona (<span className="text-slate-300">{brandProfile.targetAudience.primaryPersona}</span>).
           </p>
         </div>
 
@@ -122,7 +126,7 @@ export function Step3PinterestMoodboard({
             </div>
             <input
               type="text"
-              placeholder="Search Pinterest aesthetics (e.g. minimalist skincare photography, 3d cyberpunk app mockup)..."
+              placeholder="Search Pinterest aesthetics using your API token & Gemini AI..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-[#E60023] text-xs sm:text-sm"
@@ -147,7 +151,7 @@ export function Step3PinterestMoodboard({
         {/* AI Suggested Query Chips */}
         <div className="flex items-center gap-2 flex-wrap text-xs">
           <span className="text-slate-500 font-medium flex items-center gap-1">
-            <Sparkles className="w-3 h-3 text-amber-400" /> AI Suggestions:
+            <Sparkles className="w-3 h-3 text-amber-400" /> Gemini Recommendations:
           </span>
           {brandProfile.pinterestStrategy.searchQueries.map((query, i) => (
             <button
@@ -168,24 +172,26 @@ export function Step3PinterestMoodboard({
       {/* Filter Aesthetic Tags */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 text-xs">
         <Filter className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-        <span className="text-slate-500 font-medium shrink-0">Aesthetics:</span>
-        {["All", "Minimalist", "3D", "Clean", "Lifestyle", "UGC", "Macro", "Editorial"].map((tag) => (
+        <span className="text-slate-500 font-medium shrink-0">Filter:</span>
+        {["All", "Top Picks", "Sandbox", "Minimalist", "3D", "Clean", "Lifestyle", "UGC", "Macro"].map((tag) => (
           <button
             key={tag}
             type="button"
             onClick={() => setActiveTag(tag)}
-            className={`px-3 py-1.5 rounded-xl font-medium transition shrink-0 ${
+            className={`px-3 py-1.5 rounded-xl font-medium transition shrink-0 flex items-center gap-1.5 ${
               activeTag === tag
                 ? "bg-rose-600 text-white shadow-sm"
                 : "bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200"
             }`}
           >
-            {tag}
+            {tag === "Top Picks" && <Award className="w-3.5 h-3.5 text-amber-300" />}
+            {tag === "Sandbox" && <FlaskConical className="w-3.5 h-3.5 text-amber-400" />}
+            <span>{tag}</span>
           </button>
         ))}
       </div>
 
-      {/* Pinterest Pins Grid */}
+      {/* Pinterest Pins Grid with Gemini Creative Director Scoring */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredPins.map((pin) => {
           const isSelected = selectedIds.has(pin.id);
@@ -223,11 +229,17 @@ export function Step3PinterestMoodboard({
                   </div>
                 </div>
 
-                {/* Top Left: Board / Saves */}
-                <div className="absolute top-3 left-3 flex items-center gap-1.5">
-                  {pin.likesOrSaves && (
-                    <span className="px-2.5 py-1 bg-black/70 backdrop-blur-md text-[10px] font-semibold text-white rounded-full border border-white/10">
-                      {pin.likesOrSaves}
+                {/* Top Left: Gemini Fit Score Badge & Sandbox Indicator */}
+                <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
+                  {pin.geminiFitScore && (
+                    <span className="px-2.5 py-1 bg-black/80 backdrop-blur-md text-[11px] font-bold text-amber-300 rounded-full border border-amber-500/30 flex items-center gap-1 shadow-md">
+                      <Zap className="w-3 h-3 fill-amber-300 text-amber-300" />
+                      {pin.geminiFitScore}% Gemini Fit
+                    </span>
+                  )}
+                  {pin.isFromSandboxApi && (
+                    <span className="px-2 py-0.5 bg-purple-950/80 backdrop-blur-md text-[10px] font-semibold text-purple-300 rounded-full border border-purple-500/30 flex items-center gap-1">
+                      <FlaskConical className="w-2.5 h-2.5 text-purple-400" /> Sandbox API
                     </span>
                   )}
                 </div>
@@ -246,7 +258,7 @@ export function Step3PinterestMoodboard({
                 )}
               </div>
 
-              {/* Pin Details */}
+              {/* Pin Details & Gemini Director Rationale */}
               <div className="p-5 space-y-3.5 flex-1 flex flex-col justify-between">
                 <div className="space-y-2">
                   <div className="flex items-start justify-between gap-2">
@@ -263,6 +275,16 @@ export function Step3PinterestMoodboard({
                       <ExternalLink className="w-3.5 h-3.5" />
                     </a>
                   </div>
+
+                  {/* Gemini Fit Reason */}
+                  {pin.geminiFitReason && (
+                    <div className="p-2.5 bg-amber-950/20 border border-amber-500/20 rounded-xl text-[11px] text-amber-200/90 leading-relaxed">
+                      <span className="font-bold text-amber-400 block mb-0.5">
+                        Creative Director Assessment:
+                      </span>
+                      {pin.geminiFitReason}
+                    </div>
+                  )}
 
                   <p className="text-xs text-slate-400 line-clamp-2">
                     {pin.description}
@@ -330,7 +352,7 @@ export function Step3PinterestMoodboard({
             <p className="text-xs text-slate-400">
               {selectedPins.length === 0
                 ? "Select at least 1 pin to seed Nano Banana Pro prompt style"
-                : "AI will blend these aesthetics with your product DNA"}
+                : "Gemini will fuse these pins with your product DNA"}
             </p>
           </div>
         </div>

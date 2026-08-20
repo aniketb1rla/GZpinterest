@@ -4,6 +4,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const token = body.token || process.env.PINTEREST_ACCESS_TOKEN;
+    const forceSandbox = body.useSandbox !== undefined ? body.useSandbox : true;
 
     if (!token) {
       return NextResponse.json({
@@ -12,35 +13,59 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 1. Fetch User Account Profile from Pinterest v5 API
-    const userRes = await fetch("https://api.pinterest.com/v5/user_account", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      signal: AbortSignal.timeout(8000),
-    });
+    // Try endpoints in order (Sandbox first if requested/default, then Production)
+    const baseUrls = forceSandbox
+      ? ["https://api-sandbox.pinterest.com/v5", "https://api.pinterest.com/v5"]
+      : ["https://api.pinterest.com/v5", "https://api-sandbox.pinterest.com/v5"];
 
-    if (!userRes.ok) {
-      const errText = await userRes.text();
+    let successData: any = null;
+    let activeBaseUrl = baseUrls[0];
+    let lastError: string = "";
+    let lastStatus: number = 401;
+
+    for (const baseUrl of baseUrls) {
+      try {
+        const userRes = await fetch(`${baseUrl}/user_account`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          signal: AbortSignal.timeout(6000),
+        });
+
+        if (userRes.ok) {
+          successData = await userRes.json();
+          activeBaseUrl = baseUrl;
+          break;
+        } else {
+          lastStatus = userRes.status;
+          const errText = await userRes.text();
+          lastError = `Pinterest (${baseUrl.includes("sandbox") ? "Sandbox" : "Production"}) HTTP ${lastStatus}: ${errText || userRes.statusText}`;
+        }
+      } catch (e: any) {
+        lastError = e.message || "Network timeout connecting to Pinterest";
+      }
+    }
+
+    if (!successData) {
       return NextResponse.json({
         valid: false,
-        status: userRes.status,
-        error: `Pinterest API Error (${userRes.status}): ${errText || userRes.statusText}`,
+        status: lastStatus,
+        error: lastError,
       });
     }
 
-    const userData = await userRes.json();
+    const isSandbox = activeBaseUrl.includes("sandbox");
 
-    // 2. Fetch User's Boards
+    // Fetch User's Boards
     let boards: any[] = [];
     try {
-      const boardsRes = await fetch("https://api.pinterest.com/v5/boards?page_size=20", {
+      const boardsRes = await fetch(`${activeBaseUrl}/boards?page_size=25`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(6000),
       });
       if (boardsRes.ok) {
         const boardsData = await boardsRes.json();
@@ -50,15 +75,15 @@ export async function POST(req: NextRequest) {
       console.warn("Could not fetch user boards:", e);
     }
 
-    // 3. Fetch User's Pins
+    // Fetch User's Pins
     let pins: any[] = [];
     try {
-      const pinsRes = await fetch("https://api.pinterest.com/v5/pins?page_size=25", {
+      const pinsRes = await fetch(`${activeBaseUrl}/pins?page_size=25`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(6000),
       });
       if (pinsRes.ok) {
         const pinsData = await pinsRes.json();
@@ -70,10 +95,13 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       valid: true,
+      isSandbox,
+      environment: isSandbox ? "Pinterest Sandbox" : "Pinterest Production",
+      baseUrl: activeBaseUrl,
       user: {
-        username: userData.username || userData.business_name || "Pinterest Creator",
-        profileImage: userData.profile_image || "",
-        accountType: userData.account_type || "USER",
+        username: successData.username || successData.business_name || "Pinterest Creator",
+        profileImage: successData.profile_image || "",
+        accountType: successData.account_type || (isSandbox ? "SANDBOX_ACCOUNT" : "PROD_ACCOUNT"),
         boardCount: boards.length,
         pinCount: pins.length,
       },

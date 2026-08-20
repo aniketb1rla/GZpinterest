@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { X, Key, Sparkles, ShieldCheck, ExternalLink, CheckCircle2, AlertCircle, RefreshCw } from "lucide-react";
+import { X, Key, Sparkles, ShieldCheck, ExternalLink, CheckCircle2, AlertCircle, RefreshCw, FlaskConical, Globe } from "lucide-react";
 import { ApiSettings } from "@/lib/types";
 
 interface SettingsModalProps {
@@ -12,12 +12,16 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ isOpen, onClose, onSave, currentSettings }: SettingsModalProps) {
-  const [settings, setSettings] = useState<ApiSettings>(currentSettings);
+  const [settings, setSettings] = useState<ApiSettings>({
+    useSandbox: true,
+    ...currentSettings,
+  });
   const [savedToast, setSavedToast] = useState(false);
   const [isTestingPinterest, setIsTestingPinterest] = useState(false);
   const [pinterestStatus, setPinterestStatus] = useState<{
     tested: boolean;
     valid?: boolean;
+    isSandbox?: boolean;
     username?: string;
     boardCount?: number;
     pinCount?: number;
@@ -25,57 +29,66 @@ export function SettingsModal({ isOpen, onClose, onSave, currentSettings }: Sett
   }>({ tested: false });
 
   // 1. Declare testPinterestToken BEFORE useEffect
-  const testPinterestToken = useCallback(async (tokenToTest?: string) => {
-    const token = tokenToTest || settings.pinterestToken;
-    if (!token) {
-      setPinterestStatus({
-        tested: true,
-        valid: false,
-        error: "Please enter a Pinterest Access Token to test",
-      });
-      return;
-    }
+  const testPinterestToken = useCallback(
+    async (tokenToTest?: string, useSandboxOverride?: boolean) => {
+      const token = tokenToTest || settings.pinterestToken;
+      const isSandbox = useSandboxOverride !== undefined ? useSandboxOverride : settings.useSandbox !== false;
 
-    setIsTestingPinterest(true);
-    try {
-      const res = await fetch("/api/pinterest-user", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token }),
-      });
-      const data = await res.json();
-
-      if (data.valid) {
-        setPinterestStatus({
-          tested: true,
-          valid: true,
-          username: data.user.username,
-          boardCount: data.user.boardCount,
-          pinCount: data.user.pinCount,
-        });
-      } else {
+      if (!token) {
         setPinterestStatus({
           tested: true,
           valid: false,
-          error: data.error || "Invalid token or insufficient scopes",
+          error: "Please enter a Pinterest Access Token to test",
         });
+        return;
       }
-    } catch (e: any) {
-      setPinterestStatus({
-        tested: true,
-        valid: false,
-        error: e.message || "Failed to reach Pinterest API",
-      });
-    } finally {
-      setIsTestingPinterest(false);
-    }
-  }, [settings.pinterestToken]);
 
-  // 2. useEffect now safely references testPinterestToken
+      setIsTestingPinterest(true);
+      try {
+        const res = await fetch("/api/pinterest-user", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, useSandbox: isSandbox }),
+        });
+        const data = await res.json();
+
+        if (data.valid) {
+          setPinterestStatus({
+            tested: true,
+            valid: true,
+            isSandbox: data.isSandbox,
+            username: data.user.username,
+            boardCount: data.user.boardCount,
+            pinCount: data.user.pinCount,
+          });
+        } else {
+          setPinterestStatus({
+            tested: true,
+            valid: false,
+            error: data.error || "Invalid token or insufficient scopes",
+          });
+        }
+      } catch (e: any) {
+        setPinterestStatus({
+          tested: true,
+          valid: false,
+          error: e.message || "Failed to reach Pinterest API",
+        });
+      } finally {
+        setIsTestingPinterest(false);
+      }
+    },
+    [settings.pinterestToken, settings.useSandbox]
+  );
+
+  // 2. useEffect safely references testPinterestToken
   useEffect(() => {
-    setSettings(currentSettings);
+    setSettings({
+      useSandbox: true,
+      ...currentSettings,
+    });
     if (isOpen && currentSettings.pinterestToken) {
-      testPinterestToken(currentSettings.pinterestToken);
+      testPinterestToken(currentSettings.pinterestToken, currentSettings.useSandbox);
     }
   }, [currentSettings, isOpen, testPinterestToken]);
 
@@ -101,7 +114,7 @@ export function SettingsModal({ isOpen, onClose, onSave, currentSettings }: Sett
             </div>
             <div>
               <h3 className="text-lg font-bold text-white">API & Credentials Settings</h3>
-              <p className="text-xs text-slate-400">Configure your Pinterest API & Gemini keys</p>
+              <p className="text-xs text-slate-400">Configure Pinterest Sandbox / Production & Gemini AI</p>
             </div>
           </div>
           <button
@@ -119,6 +132,46 @@ export function SettingsModal({ isOpen, onClose, onSave, currentSettings }: Sett
           }}
           className="space-y-4"
         >
+          {/* Environment Selector: Sandbox vs Production */}
+          <div className="space-y-1.5">
+            <label className="text-slate-200 font-semibold text-xs sm:text-sm block">
+              Pinterest API Environment
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSettings({ ...settings, useSandbox: true });
+                  setPinterestStatus({ tested: false });
+                }}
+                className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition ${
+                  settings.useSandbox !== false
+                    ? "bg-amber-500/15 border-amber-500 text-amber-300 shadow-sm"
+                    : "bg-slate-950 border-slate-800 text-slate-400 hover:text-white"
+                }`}
+              >
+                <FlaskConical className="w-3.5 h-3.5" />
+                <span>Sandbox (api-sandbox)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSettings({ ...settings, useSandbox: false });
+                  setPinterestStatus({ tested: false });
+                }}
+                className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition ${
+                  settings.useSandbox === false
+                    ? "bg-rose-500/15 border-rose-500 text-rose-300 shadow-sm"
+                    : "bg-slate-950 border-slate-800 text-slate-400 hover:text-white"
+                }`}
+              >
+                <Globe className="w-3.5 h-3.5" />
+                <span>Production (api)</span>
+              </button>
+            </div>
+          </div>
+
           {/* Pinterest API Token Section */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -126,7 +179,7 @@ export function SettingsModal({ isOpen, onClose, onSave, currentSettings }: Sett
                 <span className="w-5 h-5 rounded-full bg-[#E60023] flex items-center justify-center text-[11px] text-white font-bold">
                   P
                 </span>
-                Pinterest API Access Token
+                Pinterest Access Token {settings.useSandbox !== false ? "(Sandbox)" : "(Production)"}
               </label>
               <a
                 href="https://developers.pinterest.com/apps/"
@@ -134,14 +187,14 @@ export function SettingsModal({ isOpen, onClose, onSave, currentSettings }: Sett
                 rel="noreferrer"
                 className="text-xs text-rose-400 hover:underline flex items-center gap-1"
               >
-                Get Token <ExternalLink className="w-3 h-3" />
+                Pinterest Dev Portal <ExternalLink className="w-3 h-3" />
               </a>
             </div>
 
             <div className="flex gap-2">
               <input
                 type="password"
-                placeholder="pina_... or your Pinterest API Bearer token"
+                placeholder="pina_... (Pinterest Token)"
                 value={settings.pinterestToken || ""}
                 onChange={(e) => {
                   setSettings({ ...settings, pinterestToken: e.target.value });
@@ -181,10 +234,10 @@ export function SettingsModal({ isOpen, onClose, onSave, currentSettings }: Sett
                   {pinterestStatus.valid ? (
                     <>
                       <p className="font-bold">
-                        Connected to Pinterest as @{pinterestStatus.username}
+                        Connected to Pinterest {pinterestStatus.isSandbox ? "Sandbox" : "Production"} as @{pinterestStatus.username}
                       </p>
                       <p className="text-[11px] text-emerald-400/80">
-                        Found {pinterestStatus.boardCount || 0} Boards & {pinterestStatus.pinCount || 0} Account Pins ready for campaign mining.
+                        Found {pinterestStatus.boardCount || 0} Boards & {pinterestStatus.pinCount || 0} Pins. Gemini will automatically analyze these pins for your campaign.
                       </p>
                     </>
                   ) : (
@@ -192,7 +245,7 @@ export function SettingsModal({ isOpen, onClose, onSave, currentSettings }: Sett
                       <p className="font-bold">Pinterest Connection Failed</p>
                       <p className="text-[11px] text-rose-300/80">{pinterestStatus.error}</p>
                       <p className="text-[10px] text-slate-400 mt-1">
-                        Tip: Ensure your token has <code>boards:read</code>, <code>pins:read</code>, and <code>user_accounts:read</code> scopes enabled in the Pinterest Developer portal.
+                        Tip: In your Pinterest Developer App, make sure the token is generated with <code>boards:read</code>, <code>pins:read</code>, and <code>user_accounts:read</code> scopes.
                       </p>
                     </>
                   )}

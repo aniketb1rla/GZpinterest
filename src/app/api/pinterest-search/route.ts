@@ -4,13 +4,20 @@ import { searchPinterestPins } from "@/lib/pinterest-service";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { query, categoryHint, pinterestToken } = body;
+    const { query, categoryHint, pinterestToken, useSandbox, brandProfile, geminiApiKey } = body;
 
     if (!query || typeof query !== "string") {
       return NextResponse.json({ error: "Search query is required" }, { status: 400 });
     }
 
-    const pins = await searchPinterestPins(query, categoryHint, pinterestToken);
+    const pins = await searchPinterestPins(
+      query,
+      categoryHint,
+      pinterestToken,
+      useSandbox !== undefined ? useSandbox : true,
+      brandProfile,
+      geminiApiKey
+    );
 
     return NextResponse.json({
       success: true,
