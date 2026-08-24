@@ -174,8 +174,45 @@ export interface CampaignBrief {
   createdAt: string;
 }
 
+export interface PinterestBoard {
+  id: string;
+  name: string;
+  description?: string;
+  privacy?: string;
+  pin_count?: number;
+  follower_count?: number;
+  created_at?: string;
+}
+
+export interface PinterestUserAccount {
+  id?: string;
+  username: string;
+  business_name?: string;
+  account_type?: string;
+  profile_image?: string;
+  follower_count?: number;
+  following_count?: number;
+  pin_count?: number;
+  board_count?: number;
+  monthly_views?: number;
+  website_url?: string;
+}
+
+export interface PinterestPublishResult {
+  id: string;
+  title: string;
+  description?: string;
+  board_id: string;
+  link?: string;
+  media?: any;
+  created_at?: string;
+}
+
 export interface ApiSettings {
   geminiApiKey?: string;
+  pinterestAccessToken?: string;
+  pinterestApiBaseUrl?: string;
   pinterestScraperKey?: string;
   nanoBananaEndpoint?: string;
+  connectedAccount?: PinterestUserAccount;
 }

@@ -31,13 +31,15 @@ export default function Home() {
   const [googleAdSets, setGoogleAdSets] = useState<NanoBananaPrompt[]>([]);
 
   const [apiSettings, setApiSettings] = useState<ApiSettings>({
+    pinterestAccessToken: "",
+    pinterestApiBaseUrl: "https://api-sandbox.pinterest.com/v5",
     pinterestScraperKey: "ok_63e7e9468267146a98115657d1e9aa6b",
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState("");
 
-  // Load API settings from localStorage
+  // Load API settings from localStorage and verify Pinterest MCP Account
   useEffect(() => {
     try {
       const saved = localStorage.getItem("gz_pinterest_settings");
@@ -47,6 +49,16 @@ export default function Home() {
     } catch (e) {
       console.log("Settings load skipped");
     }
+
+    // Background verify connected Pinterest MCP Sandbox account
+    fetch("/api/pinterest-user")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.valid && data.account) {
+          setApiSettings((prev) => ({ ...prev, connectedAccount: data.account }));
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const goToStep = useCallback((step: number) => {
@@ -57,7 +69,7 @@ export default function Home() {
     }
   }, []);
 
-  // Search Pinterest Pins with Gemini Creative Director scoring and live scraper API
+  // Search Pinterest Pins with Gemini Creative Director scoring, MCP App pins and live search
   const handleSearchPinterestPins = useCallback(
     async (query: string, overrideScraperKey?: string) => {
       setIsLoading(true);
@@ -76,6 +88,8 @@ export default function Home() {
             brandProfile,
             geminiApiKey: apiSettings.geminiApiKey,
             scraperApiKey: scraperKey,
+            pinterestAccessToken: apiSettings.pinterestAccessToken,
+            pinterestApiBaseUrl: apiSettings.pinterestApiBaseUrl,
           }),
         });
         const data = await res.json();
@@ -88,7 +102,13 @@ export default function Home() {
         setIsLoading(false);
       }
     },
-    [apiSettings.geminiApiKey, apiSettings.pinterestScraperKey, brandProfile]
+    [
+      apiSettings.geminiApiKey,
+      apiSettings.pinterestScraperKey,
+      apiSettings.pinterestAccessToken,
+      apiSettings.pinterestApiBaseUrl,
+      brandProfile,
+    ]
   );
 
   const handleSaveSettings = useCallback(

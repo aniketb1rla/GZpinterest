@@ -176,7 +176,7 @@ export function Step3PinterestMoodboard({
       <div className="flex items-center gap-2 overflow-x-auto pb-2 text-xs">
         <Filter className="w-3.5 h-3.5 text-slate-500 shrink-0" />
         <span className="text-slate-500 font-medium shrink-0">Filter:</span>
-        {["All", "Top Picks", "Videos", "Minimalist", "3D", "Clean", "Lifestyle", "UGC", "Macro"].map((tag) => (
+        {["All", "MCP Account", "Top Picks", "Videos", "Minimalist", "3D", "Clean", "Lifestyle", "UGC", "Macro"].map((tag) => (
           <button
             key={tag}
             type="button"
@@ -187,6 +187,7 @@ export function Step3PinterestMoodboard({
                 : "bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200"
             }`}
           >
+            {tag === "MCP Account" && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />}
             {tag === "Top Picks" && <Award className="w-3.5 h-3.5 text-amber-300" />}
             {tag === "Videos" && <Film className="w-3.5 h-3.5 text-rose-300" />}
             <span>{tag}</span>

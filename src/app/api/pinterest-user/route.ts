@@ -1,44 +1,68 @@
 import { NextRequest, NextResponse } from "next/server";
+import { fetchPinterestUserProfile, DEFAULT_PINTEREST_TOKEN, DEFAULT_PINTEREST_BASE_URL } from "@/lib/pinterest-service";
 
-const DEFAULT_KEY = "ok_63e7e9468267146a98115657d1e9aa6b";
-
-export async function POST(req: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
-    const body = await req.json();
-    const apiKey = body.scraperKey || process.env.PINTEREST_SCRAPER_API_KEY || DEFAULT_KEY;
+    const url = new URL(req.url);
+    const token = url.searchParams.get("token") || process.env.PINTEREST_ACCESS_TOKEN || DEFAULT_PINTEREST_TOKEN;
+    const baseUrl = url.searchParams.get("baseUrl") || process.env.PINTEREST_API_BASE_URL || DEFAULT_PINTEREST_BASE_URL;
 
-    // Verify key against omkar scraper search endpoint
-    const res = await fetch("https://pinterest-scraper.omkar.cloud/pinterest/search?search_term=aesthetic", {
-      headers: {
-        "API-Key": apiKey,
-        Accept: "application/json",
-      },
-      signal: AbortSignal.timeout(8000),
-    });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      return NextResponse.json({
-        valid: false,
-        status: res.status,
-        error: `Pinterest Search API Error (${res.status}): ${errText || res.statusText}`,
-      });
+    const result = await fetchPinterestUserProfile(token, baseUrl);
+    if (!result.valid) {
+      return NextResponse.json(
+        { valid: false, error: result.error || "Failed to authenticate Pinterest token" },
+        { status: 401 }
+      );
     }
-
-    const data = await res.json();
-    const profilesCount = data.profiles?.length || 0;
 
     return NextResponse.json({
       valid: true,
-      service: "Pinterest Scraper Cloud API",
-      endpoint: "https://pinterest-scraper.omkar.cloud",
-      profilesFound: profilesCount,
+      service: "Pinterest v5 Developer / MCP App",
+      endpoint: baseUrl,
+      account: result.account,
+    });
+  } catch (error: any) {
+    return NextResponse.json(
+      { valid: false, error: error.message || "Failed to reach Pinterest API" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json().catch(() => ({}));
+    const token =
+      body.accessToken ||
+      body.token ||
+      process.env.PINTEREST_ACCESS_TOKEN ||
+      DEFAULT_PINTEREST_TOKEN;
+    const baseUrl =
+      body.baseUrl ||
+      process.env.PINTEREST_API_BASE_URL ||
+      DEFAULT_PINTEREST_BASE_URL;
+
+    // Verify token against official Pinterest API Sandbox / Prod endpoint
+    const result = await fetchPinterestUserProfile(token, baseUrl);
+
+    if (result.valid) {
+      return NextResponse.json({
+        valid: true,
+        service: "Pinterest MCP App (Sandbox/Production)",
+        endpoint: baseUrl,
+        account: result.account,
+      });
+    }
+
+    return NextResponse.json({
+      valid: false,
+      error: result.error || "Invalid Pinterest MCP App Token",
     });
   } catch (error: any) {
     console.error("Pinterest API validation error:", error);
     return NextResponse.json({
       valid: false,
-      error: error.message || "Failed to reach Pinterest Scraper API",
+      error: error.message || "Failed to reach Pinterest API",
     });
   }
 }

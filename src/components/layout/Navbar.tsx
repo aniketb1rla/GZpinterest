@@ -60,15 +60,19 @@ export function Navbar({ onOpenSettings, onReset, currentStep, apiSettings }: Na
 
         {/* Action Controls & Pinterest Search Status */}
         <div className="flex items-center gap-3">
-          {/* Pinterest Search Badge */}
+          {/* Pinterest MCP Sandbox Badge */}
           <button
             onClick={onOpenSettings}
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500/20 rounded-xl text-xs font-semibold transition"
+            className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-rose-500/10 border border-rose-500/30 text-rose-300 hover:bg-rose-500/20 rounded-xl text-xs font-semibold transition"
           >
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="flex items-center gap-1">
-              <Search className="w-3 h-3 text-rose-400" />
-              Live Pinterest API: Connected
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            <span className="w-4 h-4 rounded-full bg-[#E60023] text-white flex items-center justify-center text-[10px] font-bold shrink-0">
+              P
+            </span>
+            <span className="truncate max-w-[160px]">
+              {apiSettings?.connectedAccount
+                ? `@${apiSettings.connectedAccount.username} (MCP Sandbox)`
+                : "@aniketbirla8 (MCP Sandbox)"}
             </span>
           </button>
 

@@ -1,7 +1,15 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { BrandProfile, PinterestPin } from "./types";
+import {
+  BrandProfile,
+  PinterestPin,
+  PinterestBoard,
+  PinterestUserAccount,
+  PinterestPublishResult,
+} from "./types";
 
-const DEFAULT_PINTEREST_SCRAPER_KEY = "ok_63e7e9468267146a98115657d1e9aa6b";
+export const DEFAULT_PINTEREST_TOKEN = process.env.PINTEREST_ACCESS_TOKEN || "";
+export const DEFAULT_PINTEREST_BASE_URL = process.env.PINTEREST_API_BASE_URL || "https://api-sandbox.pinterest.com/v5";
+export const DEFAULT_PINTEREST_SCRAPER_KEY = "ok_63e7e9468267146a98115657d1e9aa6b";
 
 // Extensive high-aesthetic visual seed database across all key eCommerce & brand niches
 const CURATED_AESTHETICS_LIBRARY: Record<string, PinterestPin[]> = {
@@ -470,23 +478,318 @@ Return a STRICT JSON array:
   }
 }
 
-// 4. Master Pinterest Search Pipeline
+// 4. Pinterest API v5 (MCP App & Sandbox Integration)
+export async function fetchPinterestUserProfile(
+  accessToken?: string,
+  baseUrl?: string
+): Promise<{ valid: boolean; account?: PinterestUserAccount; error?: string }> {
+  const token =
+    accessToken ||
+    process.env.PINTEREST_ACCESS_TOKEN ||
+    DEFAULT_PINTEREST_TOKEN;
+  const base =
+    baseUrl ||
+    process.env.PINTEREST_API_BASE_URL ||
+    DEFAULT_PINTEREST_BASE_URL;
+
+  try {
+    const res = await fetch(`${base}/user_account`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      return {
+        valid: false,
+        error: errData.message || `Pinterest API Error (${res.status}): ${res.statusText}`,
+      };
+    }
+
+    const data = await res.json();
+    return {
+      valid: true,
+      account: {
+        id: data.id,
+        username: data.username || "aniketbirla8",
+        business_name: data.business_name || "Aniket Birla",
+        account_type: data.account_type || "BUSINESS",
+        profile_image: data.profile_image || "https://i.pinimg.com/600x600_R/65/bd/bd/65bdbda0eea6a48db44b6cd5410c1422.jpg",
+        follower_count: data.follower_count ?? 6,
+        following_count: data.following_count ?? 7,
+        pin_count: data.pin_count ?? 344,
+        board_count: data.board_count ?? 3,
+        monthly_views: data.monthly_views ?? 5125,
+        website_url: data.website_url,
+      },
+    };
+  } catch (err: any) {
+    return {
+      valid: false,
+      error: err.message || "Failed to reach Pinterest API",
+    };
+  }
+}
+
+export async function fetchPinterestBoards(
+  accessToken?: string,
+  baseUrl?: string
+): Promise<PinterestBoard[]> {
+  const token =
+    accessToken ||
+    process.env.PINTEREST_ACCESS_TOKEN ||
+    DEFAULT_PINTEREST_TOKEN;
+  const base =
+    baseUrl ||
+    process.env.PINTEREST_API_BASE_URL ||
+    DEFAULT_PINTEREST_BASE_URL;
+
+  try {
+    const res = await fetch(`${base}/boards`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      return (data.items || []).map((b: any) => ({
+        id: b.id,
+        name: b.name,
+        description: b.description || "",
+        privacy: b.privacy || "PUBLIC",
+        pin_count: b.pin_count ?? 0,
+        follower_count: b.follower_count ?? 0,
+        created_at: b.created_at,
+      }));
+    }
+  } catch (err) {
+    console.warn("Error fetching Pinterest boards:", err);
+  }
+  return [];
+}
+
+export async function createPinterestBoard(
+  name: string,
+  description?: string,
+  accessToken?: string,
+  baseUrl?: string
+): Promise<{ success: boolean; board?: PinterestBoard; error?: string }> {
+  const token =
+    accessToken ||
+    process.env.PINTEREST_ACCESS_TOKEN ||
+    DEFAULT_PINTEREST_TOKEN;
+  const base =
+    baseUrl ||
+    process.env.PINTEREST_API_BASE_URL ||
+    DEFAULT_PINTEREST_BASE_URL;
+
+  try {
+    const res = await fetch(`${base}/boards`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        name,
+        description: description || "Created via Pinterest MCP App",
+        privacy: "PUBLIC",
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        success: true,
+        board: {
+          id: data.id,
+          name: data.name,
+          description: data.description,
+          privacy: data.privacy,
+          pin_count: data.pin_count ?? 0,
+          created_at: data.created_at,
+        },
+      };
+    }
+
+    const errData = await res.json().catch(() => ({}));
+    return {
+      success: false,
+      error: errData.message || `Failed to create board (${res.status})`,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err.message || "Network error while creating board",
+    };
+  }
+}
+
+export async function fetchPinterestUserPins(
+  accessToken?: string,
+  baseUrl?: string
+): Promise<PinterestPin[]> {
+  const token =
+    accessToken ||
+    process.env.PINTEREST_ACCESS_TOKEN ||
+    DEFAULT_PINTEREST_TOKEN;
+  const base =
+    baseUrl ||
+    process.env.PINTEREST_API_BASE_URL ||
+    DEFAULT_PINTEREST_BASE_URL;
+
+  try {
+    const res = await fetch(`${base}/pins?page_size=25`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      return (data.items || []).map((p: any) => {
+        const imgObj = p.media?.images;
+        const imgUrl =
+          imgObj?.["1200x"]?.url ||
+          imgObj?.["600x"]?.url ||
+          imgObj?.["400x300"]?.url ||
+          imgObj?.["150x150"]?.url ||
+          "https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=800&q=80";
+
+        return {
+          id: p.id,
+          title: p.title || "Pinterest MCP Pin",
+          description: p.description || "Pin from your connected Pinterest Account",
+          imageUrl: imgUrl,
+          pinUrl: p.link || `https://www.pinterest.com/pin/${p.id}/`,
+          board: "My Pinterest MCP Board",
+          authorUsername: p.board_owner?.username || "aniketbirla8",
+          authorName: "Aniket Birla (MCP)",
+          authorAvatar: "https://i.pinimg.com/600x600_R/65/bd/bd/65bdbda0eea6a48db44b6cd5410c1422.jpg",
+          aestheticTags: ["My Pin", "MCP Sandbox", "Verified Account"],
+          colorScheme: [p.dominant_color || "#E60023", "#0F172A", "#FFFFFF"],
+          visualComposition: "High-engagement commercial creative composition",
+          lightingStyle: "Ambient studio lighting",
+          adCreativeAngle: "Proven branded creative aesthetic",
+          likesOrSaves: "My Board Pin",
+          geminiFitScore: 97,
+        };
+      });
+    }
+  } catch (err) {
+    console.warn("Error fetching Pinterest pins:", err);
+  }
+  return [];
+}
+
+export async function createPinterestPin(
+  pinData: {
+    boardId: string;
+    title: string;
+    description?: string;
+    link?: string;
+    imageUrl: string;
+  },
+  accessToken?: string,
+  baseUrl?: string
+): Promise<{ success: boolean; pin?: PinterestPublishResult; error?: string }> {
+  const token =
+    accessToken ||
+    process.env.PINTEREST_ACCESS_TOKEN ||
+    DEFAULT_PINTEREST_TOKEN;
+  const base =
+    baseUrl ||
+    process.env.PINTEREST_API_BASE_URL ||
+    DEFAULT_PINTEREST_BASE_URL;
+
+  try {
+    const res = await fetch(`${base}/pins`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        board_id: pinData.boardId,
+        title: pinData.title,
+        description: pinData.description || "Generated via AI Creative Studio",
+        link: pinData.link || undefined,
+        media_source: {
+          source_type: "image_url",
+          url: pinData.imageUrl,
+        },
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        success: true,
+        pin: {
+          id: data.id,
+          title: data.title,
+          description: data.description,
+          board_id: data.board_id,
+          link: data.link,
+          media: data.media,
+          created_at: data.created_at,
+        },
+      };
+    }
+
+    const errData = await res.json().catch(() => ({}));
+    return {
+      success: false,
+      error: errData.message || `Failed to create pin on Pinterest (${res.status})`,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err.message || "Network error publishing pin to Pinterest",
+    };
+  }
+}
+
+// 5. Master Pinterest Search Pipeline
 export async function searchPinterestPins(
   query: string,
   categoryHint?: string,
   brandProfile?: BrandProfile,
   geminiApiKey?: string,
-  scraperApiKey?: string
+  scraperApiKey?: string,
+  pinterestAccessToken?: string,
+  pinterestApiBaseUrl?: string
 ): Promise<PinterestPin[]> {
   let results: PinterestPin[] = [];
 
-  // A. Primary: Query Omkar Pinterest Search Scraper API
+  // A. If MCP Sandbox / Production Pinterest Token is provided, include user's Pinterest account pins
+  const mcpToken = pinterestAccessToken || process.env.PINTEREST_ACCESS_TOKEN || DEFAULT_PINTEREST_TOKEN;
+  if (mcpToken) {
+    const userPins = await fetchPinterestUserPins(mcpToken, pinterestApiBaseUrl);
+    if (userPins.length > 0) {
+      results.push(...userPins);
+    }
+  }
+
+  // B. Query Omkar Pinterest Search Scraper API
   const livePins = await fetchPinsFromOmkarScraper(query, scraperApiKey);
   if (livePins.length > 0) {
     results.push(...livePins);
   }
 
-  // B. Topic-Aware Pinterest Library Matches
+  // C. Topic-Aware Pinterest Library Matches
   const categoryMatches = matchCategoryPins(query, categoryHint);
   results.push(...categoryMatches);
 
@@ -499,8 +802,8 @@ export async function searchPinterestPins(
     return true;
   });
 
-  // C. Gemini AI Creative Director Pin Scoring & Annotation
-  const scoredPins = await scorePinsWithGeminiDirector(deduplicated.slice(0, 15), brandProfile, geminiApiKey);
+  // D. Gemini AI Creative Director Pin Scoring & Annotation
+  const scoredPins = await scorePinsWithGeminiDirector(deduplicated.slice(0, 18), brandProfile, geminiApiKey);
 
   // Sort by Gemini Fit Score descending
   scoredPins.sort((a, b) => (b.geminiFitScore || 0) - (a.geminiFitScore || 0));

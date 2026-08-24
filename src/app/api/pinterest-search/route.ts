@@ -4,7 +4,15 @@ import { searchPinterestPins } from "@/lib/pinterest-service";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { query, categoryHint, brandProfile, geminiApiKey, scraperApiKey } = body;
+    const {
+      query,
+      categoryHint,
+      brandProfile,
+      geminiApiKey,
+      scraperApiKey,
+      pinterestAccessToken,
+      pinterestApiBaseUrl,
+    } = body;
 
     if (!query || typeof query !== "string") {
       return NextResponse.json({ error: "Search query is required" }, { status: 400 });
@@ -15,7 +23,9 @@ export async function POST(req: NextRequest) {
       categoryHint,
       brandProfile,
       geminiApiKey,
-      scraperApiKey
+      scraperApiKey,
+      pinterestAccessToken,
+      pinterestApiBaseUrl
     );
 
     return NextResponse.json({

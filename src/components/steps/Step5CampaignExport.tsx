@@ -17,7 +17,7 @@ import {
   Smartphone,
   ExternalLink,
 } from "lucide-react";
-import { BrandProfile, NanoBananaPrompt, PinterestPin, UploadedAsset } from "@/lib/types";
+import { BrandProfile, NanoBananaPrompt, PinterestPin, UploadedAsset, PinterestBoard } from "@/lib/types";
 
 interface Step5Props {
   brandProfile: BrandProfile;
@@ -41,6 +41,101 @@ export function Step5CampaignExport({
   onBack,
 }: Step5Props) {
   const [copiedType, setCopiedType] = useState<string | null>(null);
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [boards, setBoards] = useState<PinterestBoard[]>([]);
+  const [selectedBoardId, setSelectedBoardId] = useState<string>("");
+  const [newBoardName, setNewBoardName] = useState(`${brandProfile.name} Campaign`);
+  const [isCreatingBoard, setIsCreatingBoard] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [publishStatus, setPublishStatus] = useState<string>("");
+  const [publishedPins, setPublishedPins] = useState<{ id: string; title: string; link?: string }[]>([]);
+
+  // Fetch boards on opening modal
+  const handleOpenPublishModal = async () => {
+    setShowPublishModal(true);
+    try {
+      const res = await fetch("/api/pinterest-boards");
+      const data = await res.json();
+      if (data.boards) {
+        setBoards(data.boards);
+        if (data.boards.length > 0) {
+          setSelectedBoardId(data.boards[0].id);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load boards:", e);
+    }
+  };
+
+  const handleCreateBoard = async () => {
+    if (!newBoardName.trim()) return;
+    setIsCreatingBoard(true);
+    try {
+      const res = await fetch("/api/pinterest-boards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newBoardName.trim(),
+          description: `AI Creative Campaign for ${brandProfile.name}`,
+        }),
+      });
+      const data = await res.json();
+      if (data.board) {
+        setBoards((prev) => [data.board, ...prev]);
+        setSelectedBoardId(data.board.id);
+        setNewBoardName("");
+      }
+    } catch (e) {
+      console.error("Failed to create board:", e);
+    } finally {
+      setIsCreatingBoard(false);
+    }
+  };
+
+  const handlePublishAllPins = async () => {
+    if (!selectedBoardId) return;
+    setIsPublishing(true);
+    setPublishStatus("Publishing generated creatives to your Pinterest Sandbox account...");
+
+    const allPrompts = [...metaAdSets, ...googleAdSets];
+    const results: { id: string; title: string; link?: string }[] = [];
+
+    for (const ad of allPrompts) {
+      try {
+        const imageUrl =
+          ad.mockupImageUrl ||
+          ad.pinterestInspirationReference.pinImageUrl ||
+          selectedPins[0]?.imageUrl ||
+          "https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=800&q=80";
+
+        const res = await fetch("/api/pinterest-pins", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            boardId: selectedBoardId,
+            title: `${brandProfile.name} - ${ad.adConcept}`,
+            description: `${ad.copyPack.headline}\n\n${ad.copyPack.primaryText}\n\nCTA: ${ad.copyPack.cta}`,
+            link: brandProfile.url.startsWith("http") ? brandProfile.url : `https://${brandProfile.url}`,
+            imageUrl,
+          }),
+        });
+        const data = await res.json();
+        if (data.pin) {
+          results.push({
+            id: data.pin.id,
+            title: data.pin.title,
+            link: `https://www.pinterest.com/pin/${data.pin.id}/`,
+          });
+        }
+      } catch (err) {
+        console.error("Error publishing pin:", err);
+      }
+    }
+
+    setPublishedPins(results);
+    setIsPublishing(false);
+    setPublishStatus(`Successfully published ${results.length} Pins to your Pinterest Board!`);
+  };
 
   useEffect(() => {
     // Dynamically load confetti on client mount only
@@ -205,7 +300,25 @@ export function Step5CampaignExport({
         </div>
 
         {/* Quick Action Export Buttons */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <button
+            type="button"
+            onClick={handleOpenPublishModal}
+            className="p-4 bg-rose-950/40 hover:bg-rose-900/40 border border-rose-500/40 hover:border-[#E60023] rounded-2xl transition flex flex-col items-start gap-2 text-left group shadow-lg shadow-rose-950/20"
+          >
+            <div className="p-2.5 rounded-xl bg-[#E60023] text-white group-hover:scale-105 transition shadow-md">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-white group-hover:text-rose-300 transition">
+                Publish to Pinterest
+              </p>
+              <p className="text-xs text-rose-300/80 mt-0.5">
+                Direct to MCP Sandbox Board
+              </p>
+            </div>
+          </button>
+
           <button
             type="button"
             onClick={handleDownloadMarkdown}
@@ -330,6 +443,129 @@ export function Step5CampaignExport({
           </div>
         </div>
       </div>
+
+      {/* Pinterest Publish Modal */}
+      {showPublishModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="relative w-full max-w-lg p-6 bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl space-y-5">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-[#E60023] flex items-center justify-center text-white font-bold text-sm">
+                  P
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Publish to Pinterest MCP App</h3>
+                  <p className="text-xs text-slate-400">Export campaign directly to your Pinterest boards</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPublishModal(false)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              {/* Select Existing Board */}
+              <div className="space-y-2">
+                <label className="text-slate-200 font-semibold block">Select Pinterest Board</label>
+                <select
+                  value={selectedBoardId}
+                  onChange={(e) => setSelectedBoardId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-[#E60023]"
+                >
+                  {boards.length === 0 ? (
+                    <option value="">No existing boards found</option>
+                  ) : (
+                    boards.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} ({b.privacy || "PUBLIC"})
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              {/* Or Create New Board */}
+              <div className="p-3 bg-slate-950/60 border border-slate-800/80 rounded-xl space-y-2">
+                <label className="text-slate-400 font-medium block">Or Create a New Board</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="New Board Name..."
+                    value={newBoardName}
+                    onChange={(e) => setNewBoardName(e.target.value)}
+                    className="flex-1 px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-slate-200 focus:outline-none focus:border-rose-500 text-xs"
+                  />
+                  <button
+                    type="button"
+                    disabled={isCreatingBoard || !newBoardName.trim()}
+                    onClick={handleCreateBoard}
+                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-semibold transition shrink-0"
+                  >
+                    {isCreatingBoard ? "Creating..." : "Create Board"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Status Message */}
+              {publishStatus && (
+                <div className="p-3 bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 rounded-xl">
+                  <p className="font-semibold">{publishStatus}</p>
+                </div>
+              )}
+
+              {/* Published Pins List */}
+              {publishedPins.length > 0 && (
+                <div className="space-y-2 pt-2 border-t border-slate-800 max-h-40 overflow-y-auto">
+                  <p className="font-bold text-slate-300">Published Pins on Pinterest:</p>
+                  {publishedPins.map((p) => (
+                    <div key={p.id} className="p-2 bg-slate-950 rounded-lg flex items-center justify-between text-[11px]">
+                      <span className="text-slate-200 truncate max-w-[280px]">📌 {p.title}</span>
+                      {p.link && (
+                        <a
+                          href={p.link}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-rose-400 hover:underline flex items-center gap-1 shrink-0"
+                        >
+                          View Pin <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="pt-3 flex justify-end gap-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowPublishModal(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-800 text-slate-400 hover:text-white"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  disabled={isPublishing || !selectedBoardId}
+                  onClick={handlePublishAllPins}
+                  className="px-5 py-2 bg-[#E60023] hover:bg-[#c2001e] text-white font-bold rounded-xl shadow-lg shadow-red-950/30 transition flex items-center gap-2"
+                >
+                  {isPublishing ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Publishing Pins...</span>
+                    </>
+                  ) : (
+                    <span>Publish 4 Creatives to Board</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Navigation Controls */}
       <div className="flex items-center justify-between pt-4 border-t border-slate-800/80">
