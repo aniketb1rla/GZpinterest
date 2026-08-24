@@ -52,7 +52,7 @@ export function SettingsModal({
 
   const testApiKey = useCallback(
     async (tokenToTest?: string, baseUrlToTest?: string) => {
-      const token = tokenToTest || settings.pinterestAccessToken || DEFAULT_MCP_TOKEN;
+      const token = tokenToTest || settings.pinterestAccessToken || "";
       const baseUrl = baseUrlToTest || settings.pinterestApiBaseUrl || DEFAULT_API_BASE_URL;
       setIsTestingKey(true);
 
@@ -93,13 +93,16 @@ export function SettingsModal({
 
   useEffect(() => {
     setSettings({
-      pinterestAccessToken: DEFAULT_MCP_TOKEN,
-      pinterestApiBaseUrl: DEFAULT_API_BASE_URL,
+      pinterestAccessToken: currentSettings.pinterestAccessToken || "",
+      pinterestApiBaseUrl: currentSettings.pinterestApiBaseUrl || DEFAULT_API_BASE_URL,
       pinterestScraperKey: "ok_63e7e9468267146a98115657d1e9aa6b",
       ...currentSettings,
     });
     if (isOpen && !accountInfo) {
-      testApiKey(currentSettings.pinterestAccessToken || DEFAULT_MCP_TOKEN, currentSettings.pinterestApiBaseUrl || DEFAULT_API_BASE_URL);
+      testApiKey(
+        currentSettings.pinterestAccessToken || "",
+        currentSettings.pinterestApiBaseUrl || DEFAULT_API_BASE_URL
+      );
     }
   }, [currentSettings, isOpen]);
 
